@@ -7,7 +7,7 @@ Gem::Specification.new do |spec|
   spec.name          = 'circuit_breaker'
   spec.version       = CircuitBreaker::VERSION
   spec.authors       = ['Aubrey Holland']
-  spec.email         = ['aubreyholland@gmail.com']
+  spec.email         = ['aubrey@adhocteam.us']
 
   spec.summary       = 'Handle outages to backend VA systems with a Faraday middleware'
   spec.description   = 'This is a Faraday middleware that detects backend outages and reacts to them'
