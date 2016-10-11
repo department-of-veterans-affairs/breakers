@@ -1,0 +1,221 @@
+AllCops:
+  TargetRubyVersion: 2.3
+  Include:
+    - 'Rakefile'
+
+Metrics/LineLength:
+  Max: 140
+
+# Removes the requirement for using double quotes only for string interpolation.
+Style/StringLiterals:
+  Enabled: true
+
+# These complexity and length metrics tend to require a bunch of high-touch refactoring
+# in existing projects. Leaving them high for now, and we can slowly lower them to standard
+# levels in the near future.
+Metrics/ModuleLength:
+  Max: 200
+
+Metrics/ClassLength:
+  Max: 230
+
+Metrics/MethodLength:
+  Max: 50
+
+Metrics/AbcSize:
+  Max: 75
+
+Metrics/CyclomaticComplexity:
+  Max: 20
+
+Metrics/PerceivedComplexity:
+  Max: 20
+
+# Allow long keyword parameter lists
+Metrics/ParameterLists:
+  Max: 15
+  CountKeywordArgs: false
+
+# This enforces bad style and can break things.
+# See: https://github.com/bbatsov/rubocop/issues/2614
+Performance/Casecmp:
+  Enabled: false
+
+# This requires the use of alias rather than alias_method, which seems totally arbitrary
+Style/Alias:
+  Enabled: false
+
+# This cop enforces that submodules/subclasses be defined like this:
+#
+# class Foo::Bar
+#
+# rather than like this:
+#
+# module Foo
+#   class Bar
+#
+# This is actually semantically different, and there are valid reasons for wanting to use the latter
+# form because of the way the former does funky stuff to the namespace.
+Style/ClassAndModuleChildren:
+  Enabled: false
+
+# This forces you to use class instance variables rather than class variables, which seems pretty
+# situation-specific
+Style/ClassVars:
+  Enabled: false
+
+# This makes you do things like this:
+# variable = if test
+#   'abc-123'
+# else
+#   'def-456'
+# end
+#
+# I think this is harder to read than assigning the variable within the conditional.
+Style/ConditionalAssignment:
+  Enabled: false
+
+# This cop forces you to put a return at the beginning of a block of code rather than having an if statement
+# whose body carries to the end of the function. For example:
+#
+# def foo
+#   ...
+#   if test
+#     ...
+#   end
+# end
+#
+# would be considered bad, and the cop would force you to put a `return if !test` before that block and
+# then remove the if. The problem is that this hides intent, since the if test does have a purpose in
+# readability, and it could also be easier for future changes to miss the return statement and add code
+# after it expecting it to be executed.
+Style/GuardClause:
+  Enabled: false
+
+# This is pretty much the same thing as the one above. Inside a loop, it forces you to use next to skip
+# iteration rather than using an if block that runs to the end of the loop, and it suffers from the same
+# problems as above.
+Style/Next:
+  Enabled: false
+
+Style/IndentArray:
+  EnforcedStyle: consistent
+
+# This forces you to change simple if/unless blocks to the conditional form like: `return 2 if badness`.
+# Unfortunately there are a number of cases where it makes sense to use the block form even for simple statements,
+# and the modifier form can be easy to miss when scanning code.
+Style/IfUnlessModifier:
+  Enabled: false
+
+# This requires you to implement respond_to_missing? anywhere that you implement method_missing, but I think that
+# is a lof of a pain.
+Style/MethodMissing:
+  Enabled: false
+
+# This cop forces the use of unless in all negated if statements. Since unless is a source of so many arguments
+# and there seems to be no purpose in enforcing its use, disable it.
+Style/NegatedIf:
+  Enabled: false
+
+# This will force you to use methods like .positive? and .zero? rather than > 0 and == 0. But why?
+Style/NumericPredicate:
+  Enabled: false
+
+# This one enforces that functions with names like has_value? be renamed to value?. There are many cases where
+# doing so would make the code more difficult to parse.
+Style/PredicateName:
+  Enabled: false
+
+# By default this will force you to use specific names for arguments for enumerable and other methods,
+# which I don't understand even a little bit.
+Style/SingleLineBlockParams:
+  Methods: []
+
+# This rule disallows you from parenthesizing the test in ternary operations, so that:
+# (p == 100) ? 'success' : ''
+# must be written as:
+# p == 100 ? 'success' : ''
+# I can't possibly be the only one who finds the latter a bit harder to read, can I?
+Style/TernaryParentheses:
+  Enabled: false
+
+# Allow trivial methods that have ? at the end.
+Style/TrivialAccessors:
+  AllowPredicates: true
+
+# It's ok to make a small array of words without using a %w
+Style/WordArray:
+  MinSize: 5
+
+# Some people really like to put lines at the beginning and end of class bodies, while other people
+# really don't. It doesn't really seem to matter.
+Style/EmptyLinesAroundClassBody:
+  Enabled: false
+
+# This forces you to put a comment like this at the top of every single file:
+# frozen_string_literal: true
+# In Ruby 3, string literals will be frozen by default, so doing so future-proofs
+# the code, but in the meantime it's a huge pain in the ass.
+Style/FrozenStringLiteralComment:
+  Enabled: false
+
+# this forces you to use the lambda keyword rather than -> for multiline lambdas, which seems totally arbitrary
+Style/Lambda:
+  Enabled: false
+
+# Force indentation for milti-line expressions and method calls
+Style/MultilineOperationIndentation:
+  EnforcedStyle: indented
+
+Style/MultilineMethodCallIndentation:
+  EnforcedStyle: indented
+
+# This disallows the use of $1, $2 from regular expressions, which seems to make no sense whatsoever
+Style/PerlBackrefs:
+  Enabled: false
+
+# This enforces that multi-line array literals do not end in a comma. For example:
+#
+# foo = [
+#   1,
+#   2
+# ]
+Style/TrailingCommaInLiteral:
+  EnforcedStyleForMultiline: no_comma
+
+# Same as above but for method arguments rather than array entries.
+Style/TrailingCommaInArguments:
+  EnforcedStyleForMultiline: no_comma
+
+# This forces you to replace things like: `[1, 2, 3].length == 0` with `[1,2,3].empty?`. The problem is that
+# not all things that implement length also implement empty? so you will get errors that cannot be resolved,
+# and the cop will encourage you to do things that are incorrect.
+Style/ZeroLengthPredicate:
+  Enabled: false
+
+# Enforce alignment of multi-line assignments to be like this:
+# variable = if test
+#   ...
+# end
+Lint/EndAlignment:
+  AlignWith: variable
+
+# This cop will require you to replace or prefix method arguments that go unused with underscores. The problem
+# is that while seeming to solve no problem this could easily cause issues where someone editing the code to
+# begin using the variable forgets to remove the underscore. Also, if you replace the argument with _, then
+# information about the meaning of that argument is lost.
+Lint/UnusedMethodArgument:
+  Enabled: false
+
+# Same as above but with block arguments.
+Lint/UnusedBlockArgument:
+  Enabled: false
+
+# This cop forces all rescue blocks to do something with the exception. Sometimes you just have an exception
+# you want to rescue but do nothing about.
+Lint/HandleExceptions:
+  Enabled: false
+
+# This isn't a library, so let's not enforce documentation.
+Documentation:
+  Enabled: false
