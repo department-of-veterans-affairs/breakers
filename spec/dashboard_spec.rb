@@ -13,7 +13,7 @@ describe CircuitBreaker::Dashboard, :integration, type: :feature do
       host: /.*facebook.com/,
       path: /.*/
     )
-    client = CircuitBreaker::Client.new(Redis.new, [service])
+    client = CircuitBreaker::Client.new(redis_connection: Redis.new, services: [service], logger: Logger.new(STDOUT))
     Capybara.app = CircuitBreaker::Dashboard.new(client)
   end
 
