@@ -31,11 +31,14 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency 'faraday'
   spec.add_dependency 'multi_json'
+  spec.add_dependency 'sinatra'
 
   spec.add_development_dependency 'activesupport'
   spec.add_development_dependency 'bundler'
   spec.add_development_dependency 'byebug'
+  spec.add_development_dependency 'capybara'
   spec.add_development_dependency 'fakeredis'
+  spec.add_development_dependency 'poltergeist'
   spec.add_development_dependency 'rake'
   spec.add_development_dependency 'rspec'
   spec.add_development_dependency 'rubocop'

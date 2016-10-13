@@ -1,0 +1,10 @@
+<h1 class="ui dividing header">Requests by Service</h1>
+<div class="ui grid">
+  <% services.each do |service| %>
+    <div class="eight wide column">
+      <div class="ui segment">
+        <div class="service-requests-pane" data-service="<%= service.name %>"><%= service.name %></div>
+      </div>
+    </div>
+  <% end %>
+</div>

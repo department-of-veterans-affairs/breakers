@@ -3,62 +3,49 @@ require 'multi_json'
 
 module CircuitBreaker
   class UptimeMiddleware < Faraday::Middleware
-    def initialize(app, redis_connection, services)
+    def initialize(app, client)
       super(app)
-      @redis_connection = redis_connection
-      @services = services
+      @client = client
     end
 
     def call(request_env)
-      service = @services.find(request_env.url)
-      last_outage = find_last_outage(service)
+      service = @client.service_for_url(request_env.url)
+      last_outage = service.last_outage
 
-      if last_outage && !last_outage.over?
+      if last_outage && !last_outage.ended?
         if last_outage.ready_for_retest?
-          lock = RetestLock.new(service, @redis_connection)
-          if lock.acquire
-            begin
-            ensure
-              lock.release
-            end
-          else
-            return outage_response(last_outage, service)
-          end
+          handle_request(service, request_env, last_outage)
         else
-          return outage_response(last_outage, service)
+          outage_response(last_outage, service)
         end
+      else
+        handle_request(service, request_env, nil)
       end
-
-      @app.call(request_env).on_complete do |response_env|
-        if response_env.status >= 500
-          apply_to_service(service, 'errors', issue: 'status', status: 500)
-        end
-      end
-    rescue Faraday::TimeoutError
-      apply_to_service(service, 'errors', issue: 'timeout')
     end
 
     protected
-
-    def apply_to_service(service, list_name, data)
-      if service
-        @redis_connection.zadd("cb-#{service[:name]}-#{list_name}", Time.now.to_i, MultiJson.dump(data))
-      end
-    end
-
-    def find_last_outage(service)
-      data = @redis_connection.zrange("cb-#{service[:name]}-outages", -1, -1)[0]
-      data && Outage.new(data)
-    end
 
     def outage_response(outage, service)
       Faraday::Response.new.tap do |response|
         response.finish(
           status: 503,
-          body: "Outage detected on #{service[:name]} beginning at #{outage.start_time.to_i}",
+          body: "Outage detected on #{service.name} beginning at #{outage.start_time.to_i}",
           response_headers: {}
         )
       end
+    end
+
+    def handle_request(service, request_env, outage)
+      return @app.call(request_env).on_complete do |response_env|
+        if response_env.status >= 500
+          service.add_error
+        else
+          service.add_success
+          outage&.end!
+        end
+      end
+    rescue Faraday::TimeoutError
+      service.add_error
     end
   end
 end
