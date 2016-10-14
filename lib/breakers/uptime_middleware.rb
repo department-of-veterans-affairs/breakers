@@ -1,7 +1,7 @@
 require 'faraday'
 require 'multi_json'
 
-module CircuitBreaker
+module Breakers
   class UptimeMiddleware < Faraday::Middleware
     def initialize(app, client)
       super(app)
@@ -74,7 +74,7 @@ module CircuitBreaker
       current_outage&.update_last_test_time!
 
       @client.logger&.warn(
-        msg: 'CircuitBreaker failed request',
+        msg: 'Breakers failed request',
         service: service.name,
         url: request_env.url.to_s,
         error: error

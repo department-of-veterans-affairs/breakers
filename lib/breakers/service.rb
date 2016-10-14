@@ -1,6 +1,6 @@
 require 'uri'
 
-module CircuitBreaker
+module Breakers
   class Service
     attr_reader :name
     attr_reader :host
@@ -33,7 +33,7 @@ module CircuitBreaker
         client: @client,
         service: self,
         start_time: start_time,
-        end_time: end_time,
+        end_time: end_time
       )
     end
 

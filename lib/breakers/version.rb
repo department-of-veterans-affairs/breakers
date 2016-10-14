@@ -1,3 +1,3 @@
-module CircuitBreaker
+module Breakers
   VERSION = '0.0.1'.freeze
 end

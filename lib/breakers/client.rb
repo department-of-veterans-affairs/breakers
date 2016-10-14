@@ -1,4 +1,4 @@
-module CircuitBreaker
+module Breakers
   class Client
     attr_reader :services
     attr_reader :plugins

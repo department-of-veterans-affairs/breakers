@@ -1,9 +1,9 @@
 require 'spec_helper'
 
-describe CircuitBreaker::UptimeMiddleware do
+describe Breakers::UptimeMiddleware do
   let(:redis) { Redis.new }
   let(:service) do
-    CircuitBreaker::Service.new(
+    Breakers::Service.new(
       name: 'VA',
       host: /.*va.gov/,
       path: /.*/
@@ -12,7 +12,7 @@ describe CircuitBreaker::UptimeMiddleware do
   let(:logger) { Logger.new(nil) }
   let(:plugin) { ExamplePlugin.new }
   let(:client) do
-    CircuitBreaker::Client.new(
+    Breakers::Client.new(
       redis_connection: redis,
       services: [service],
       logger: logger,
@@ -20,10 +20,11 @@ describe CircuitBreaker::UptimeMiddleware do
     )
   end
   let(:connection) do
-    Faraday.new(url: 'http://va.gov') do |conn|
-      conn.use :circuit_breaker, client
-      conn.adapter Faraday.default_adapter
-    end
+    Breakers.new_connection(url_base: 'http://va.gov')
+  end
+
+  before do
+    Breakers.set_client(client)
   end
 
   context 'with a 500' do
@@ -47,7 +48,7 @@ describe CircuitBreaker::UptimeMiddleware do
 
     it 'logs the error' do
       expect(logger).to receive(:warn).with(
-        msg: 'CircuitBreaker failed request', service: 'VA', url: 'http://va.gov/', error: 500
+        msg: 'Breakers failed request', service: 'VA', url: 'http://va.gov/', error: 500
       )
       connection.get '/'
     end
@@ -58,12 +59,12 @@ describe CircuitBreaker::UptimeMiddleware do
     end
 
     it 'logs the outage' do
-      expect(logger).to receive(:error).with(msg: 'CircuitBreaker outage beginning', service: 'VA')
+      expect(logger).to receive(:error).with(msg: 'Breakers outage beginning', service: 'VA')
       connection.get '/'
     end
 
     it 'tells plugins about the outage' do
-      expect(plugin).to receive(:on_outage_begin).with(instance_of(CircuitBreaker::Outage))
+      expect(plugin).to receive(:on_outage_begin).with(instance_of(Breakers::Outage))
       connection.get '/'
     end
   end
@@ -84,7 +85,7 @@ describe CircuitBreaker::UptimeMiddleware do
 
     it 'logs the error' do
       expect(logger).to receive(:warn).with(
-        msg: 'CircuitBreaker failed request', service: 'VA', url: 'http://va.gov/', error: 'timeout'
+        msg: 'Breakers failed request', service: 'VA', url: 'http://va.gov/', error: 'timeout'
       )
       connection.get '/'
     end
@@ -172,12 +173,12 @@ describe CircuitBreaker::UptimeMiddleware do
       end
 
       it 'logs the end of the outage' do
-        expect(logger).to receive(:info).with(msg: 'CircuitBreaker outage ending', service: 'VA')
+        expect(logger).to receive(:info).with(msg: 'Breakers outage ending', service: 'VA')
         connection.get '/'
       end
 
       it 'tells the plugin about the end of the outage' do
-        expect(plugin).to receive(:on_outage_end).with(instance_of(CircuitBreaker::Outage))
+        expect(plugin).to receive(:on_outage_end).with(instance_of(Breakers::Outage))
         connection.get '/'
       end
     end

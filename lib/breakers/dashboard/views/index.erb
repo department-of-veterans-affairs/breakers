@@ -16,7 +16,7 @@
                 <th>End Time</th>
               </thead>
               <tbody>
-                <% service.outages_in_range(start_time: Time.now - CircuitBreaker::Dashboard::TWO_WEEKS, end_time: Time.now).each do |outage| %>
+                <% service.outages_in_range(start_time: Time.now - Breakers::Dashboard::TWO_WEEKS, end_time: Time.now).each do |outage| %>
                   <tr>
                     <td><%= outage.start_time.strftime('%-m/%-d/%Y %H:%M:%S') %></td>
                     <td><%= outage.end_time.strftime('%-m/%-d/%Y %H:%M:%S') %></td>

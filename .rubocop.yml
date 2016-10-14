@@ -215,7 +215,3 @@ Lint/UnusedBlockArgument:
 # you want to rescue but do nothing about.
 Lint/HandleExceptions:
   Enabled: false
-
-# This isn't a library, so let's not enforce documentation.
-Documentation:
-  Enabled: false

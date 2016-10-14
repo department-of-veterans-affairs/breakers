@@ -1,6 +1,6 @@
 require 'multi_json'
 
-module CircuitBreaker
+module Breakers
   class Outage
     attr_reader :service
 
@@ -22,7 +22,7 @@ module CircuitBreaker
       data = MultiJson.dump(start_time: Time.now.to_i)
       client.redis_connection.zadd("cb-#{service.name}-outages", Time.now.to_i, data)
 
-      client.logger&.error(msg: 'CircuitBreaker outage beginning', service: service.name)
+      client.logger&.error(msg: 'Breakers outage beginning', service: service.name)
 
       client.plugins.each do |plugin|
         plugin.on_outage_begin(Outage.new(client: client, service: service, data: data)) if plugin.respond_to?(:on_outage_begin)
@@ -48,7 +48,7 @@ module CircuitBreaker
       new_body['end_time'] = Time.now.to_i
       replace_body(body: new_body)
 
-      @client.logger&.info(msg: 'CircuitBreaker outage ending', service: @service.name)
+      @client.logger&.info(msg: 'Breakers outage ending', service: @service.name)
       @client.plugins.each do |plugin|
         plugin.on_outage_end(self) if plugin.respond_to?(:on_outage_begin)
       end

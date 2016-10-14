@@ -1,15 +1,15 @@
 # coding: utf-8
 lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-require 'circuit_breaker/version'
+require 'breakers/version'
 
 Gem::Specification.new do |spec|
-  spec.name          = 'circuit_breaker'
-  spec.version       = CircuitBreaker::VERSION
+  spec.name          = 'breakers'
+  spec.version       = Breakers::VERSION
   spec.authors       = ['Aubrey Holland']
   spec.email         = ['aubrey@adhocteam.us']
 
-  spec.summary       = 'Handle outages to backend VA systems with a Faraday middleware'
+  spec.summary       = 'Handle outages to backend systems with a Faraday middleware'
   spec.description   = 'This is a Faraday middleware that detects backend outages and reacts to them'
   spec.homepage      = ''
   spec.license       = 'MIT'

@@ -3,7 +3,7 @@ require 'json'
 
 require 'byebug'
 
-module CircuitBreaker
+module Breakers
   class Dashboard < Sinatra::Base
     TWO_WEEKS = 60 * 60 * 24 * 14
 
