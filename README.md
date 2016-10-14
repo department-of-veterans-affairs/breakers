@@ -1,7 +1,7 @@
 # Breakers
 
 Breakers is a Ruby gem that implements the circuit breaker pattern for Ruby using a Faraday middleware. It is designed to handle the case
-where you app communicates with one or more backend services over HTTP and those services could possibly go down. Data about the success
+where your app communicates with one or more backend services over HTTP and those services could possibly go down. Data about the success
 and failure of requests is recorded in Redis, and the gem uses this to determine when an outage occurs. While a service is marked as down,
 requests will continue to flow through every minute to check if it has returned to being alive.
 
