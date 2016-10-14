@@ -18,11 +18,4 @@ module Breakers
   def self.client
     @client
   end
-
-  def self.new_connection(url: nil, adapter: Faraday.default_adapter)
-    Faraday.new(url: url_base) do |conn|
-      conn.use :breakers, @client
-      conn.adapter adapter
-    end
-  end
 end
