@@ -10,12 +10,11 @@ module Breakers
       @services = Array(services)
       @plugins = Array(plugins)
       @logger = logger
-      @services.each { |s| s.client = self }
     end
 
-    def service_for_url(url:)
+    def service_for_request(request_env:)
       @services.find do |service|
-        url.host =~ service.host && url.path =~ service.path
+        service.evaluator.call(request_env)
       end
     end
 

@@ -3,11 +3,9 @@ require 'spec_helper'
 describe Breakers::UptimeMiddleware do
   let(:redis) { Redis.new }
   let(:service) do
-    Breakers::Service.new(
-      name: 'VA',
-      host: /.*va.gov/,
-      path: /.*/
-    )
+    Breakers::Service.new(name: 'VA') do |request_env|
+      request_env.url.host =~ /.*va.gov/
+    end
   end
   let(:logger) { Logger.new(nil) }
   let(:plugin) { ExamplePlugin.new }
@@ -20,7 +18,10 @@ describe Breakers::UptimeMiddleware do
     )
   end
   let(:connection) do
-    Breakers.new_connection(url_base: 'http://va.gov')
+    Faraday.new('http://va.gov') do |conn|
+      conn.use :breakers
+      conn.adapter Faraday.default_adapter
+    end
   end
 
   before do

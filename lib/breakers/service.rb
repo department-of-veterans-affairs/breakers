@@ -3,16 +3,13 @@ require 'uri'
 module Breakers
   class Service
     attr_reader :name
-    attr_reader :host
-    attr_reader :path
-    attr_accessor :client
+    attr_reader :evaluator
 
     ONE_MONTH = 60 * 60 * 24 * 30
 
-    def initialize(name:, host:, path:)
+    def initialize(name:, &block)
       @name = name
-      @host = host
-      @path = path
+      @evaluator = block
     end
 
     def add_error
@@ -25,12 +22,11 @@ module Breakers
     end
 
     def last_outage
-      Outage.find_last(client: @client, service: self)
+      Outage.find_last(service: self)
     end
 
     def outages_in_range(start_time:, end_time:)
       Outage.in_range(
-        client: @client,
         service: self,
         start_time: start_time,
         end_time: end_time
@@ -73,15 +69,15 @@ module Breakers
         end
         start_time += sample_seconds
       end
-      @client.redis_connection.mget(keys).each_with_index.map do |value, idx|
+      Breakers.client.redis_connection.mget(keys).each_with_index.map do |value, idx|
         { count: value.to_i, time: times[idx] }
       end
     end
 
     def increment_key(key:)
-      @client.redis_connection.multi do
-        @client.redis_connection.incr(key)
-        @client.redis_connection.expire(key, ONE_MONTH)
+      Breakers.client.redis_connection.multi do
+        Breakers.client.redis_connection.incr(key)
+        Breakers.client.redis_connection.expire(key, ONE_MONTH)
       end
     end
 
@@ -92,21 +88,21 @@ module Breakers
     end
 
     def maybe_create_outage
-      data = @client.redis_connection.multi do
-        @client.redis_connection.get(errors_key(time: Time.now))
-        @client.redis_connection.get(errors_key(time: Time.now - 60))
-        @client.redis_connection.get(successes_key(time: Time.now))
-        @client.redis_connection.get(successes_key(time: Time.now - 60))
+      data = Breakers.client.redis_connection.multi do
+        Breakers.client.redis_connection.get(errors_key(time: Time.now))
+        Breakers.client.redis_connection.get(errors_key(time: Time.now - 60))
+        Breakers.client.redis_connection.get(successes_key(time: Time.now))
+        Breakers.client.redis_connection.get(successes_key(time: Time.now - 60))
       end
       failure_count = data[0].to_i + data[1].to_i
       success_count = data[2].to_i + data[3].to_i
 
       if failure_count > 0 && success_count == 0
-        Outage.create(client: @client, service: self)
+        Outage.create(service: self)
       else
         failure_rate = failure_count / (failure_count + success_count).to_f
         if failure_rate >= 0.5
-          Outage.create(client: @client, service: self)
+          Outage.create(service: self)
         end
       end
     end

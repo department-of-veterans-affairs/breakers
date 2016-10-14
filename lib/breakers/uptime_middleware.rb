@@ -3,13 +3,12 @@ require 'multi_json'
 
 module Breakers
   class UptimeMiddleware < Faraday::Middleware
-    def initialize(app, client)
+    def initialize(app)
       super(app)
-      @client = client
     end
 
     def call(request_env)
-      service = @client.service_for_url(url: request_env.url)
+      service = Breakers.client.service_for_request(request_env: request_env)
 
       if !service
         return @app.call(request_env)
@@ -54,7 +53,7 @@ module Breakers
           service.add_success
           current_outage&.end!
 
-          @client.plugins.each do |plugin|
+          Breakers.client.plugins.each do |plugin|
             plugin.on_success(service, request_env, response_env) if plugin.respond_to?(:on_success)
           end
         end
@@ -73,13 +72,13 @@ module Breakers
       service.add_error
       current_outage&.update_last_test_time!
 
-      @client.logger&.warn(
+      Breakers.client.logger&.warn(
         msg: 'Breakers failed request',
         service: service.name,
         url: request_env.url.to_s,
         error: error
       )
-      @client.plugins.each do |plugin|
+      Breakers.client.plugins.each do |plugin|
         plugin.on_error(service, request_env, response_env) if plugin.respond_to?(:on_error)
       end
     end

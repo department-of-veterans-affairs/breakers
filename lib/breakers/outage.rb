@@ -4,35 +4,34 @@ module Breakers
   class Outage
     attr_reader :service
 
-    def self.find_last(client:, service:)
-      data = client.redis_connection.zrange("cb-#{service.name}-outages", -1, -1)[0]
-      data && new(client: client, service: service, data: data)
+    def self.find_last(service:)
+      data = Breakers.client.redis_connection.zrange("cb-#{service.name}-outages", -1, -1)[0]
+      data && new(service: service, data: data)
     end
 
-    def self.in_range(client:, service:, start_time:, end_time:)
-      data = client.redis_connection.zrangebyscore(
+    def self.in_range(service:, start_time:, end_time:)
+      data = Breakers.client.redis_connection.zrangebyscore(
         "cb-#{service.name}-outages",
         start_time.to_i,
         end_time.to_i
       )
-      data.map { |item| new(client: client, service: service, data: item) }
+      data.map { |item| new(service: service, data: item) }
     end
 
-    def self.create(client:, service:)
+    def self.create(service:)
       data = MultiJson.dump(start_time: Time.now.to_i)
-      client.redis_connection.zadd("cb-#{service.name}-outages", Time.now.to_i, data)
+      Breakers.client.redis_connection.zadd("cb-#{service.name}-outages", Time.now.to_i, data)
 
-      client.logger&.error(msg: 'Breakers outage beginning', service: service.name)
+      Breakers.client.logger&.error(msg: 'Breakers outage beginning', service: service.name)
 
-      client.plugins.each do |plugin|
-        plugin.on_outage_begin(Outage.new(client: client, service: service, data: data)) if plugin.respond_to?(:on_outage_begin)
+      Breakers.client.plugins.each do |plugin|
+        plugin.on_outage_begin(Outage.new(service: service, data: data)) if plugin.respond_to?(:on_outage_begin)
       end
     end
 
-    def initialize(client:, service:, data:)
+    def initialize(service:, data:)
       @body = MultiJson.load(data)
       @service = service
-      @client = client
     end
 
     def to_json(*options)
@@ -48,8 +47,8 @@ module Breakers
       new_body['end_time'] = Time.now.to_i
       replace_body(body: new_body)
 
-      @client.logger&.info(msg: 'Breakers outage ending', service: @service.name)
-      @client.plugins.each do |plugin|
+      Breakers.client.logger&.info(msg: 'Breakers outage ending', service: @service.name)
+      Breakers.client.plugins.each do |plugin|
         plugin.on_outage_end(self) if plugin.respond_to?(:on_outage_begin)
       end
     end
@@ -83,9 +82,9 @@ module Breakers
     end
 
     def replace_body(body:)
-      @client.redis_connection.multi do
-        @client.redis_connection.zrem(key, MultiJson.dump(@body))
-        @client.redis_connection.zadd(key, start_time.to_i, MultiJson.dump(body))
+      Breakers.client.redis_connection.multi do
+        Breakers.client.redis_connection.zrem(key, MultiJson.dump(@body))
+        Breakers.client.redis_connection.zadd(key, start_time.to_i, MultiJson.dump(body))
       end
       @body = body
     end

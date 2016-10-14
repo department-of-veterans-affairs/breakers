@@ -8,13 +8,12 @@ Capybara.javascript_driver = :poltergeist
 
 describe Breakers::Dashboard, :integration, type: :feature, js: true do
   before(:all) do
-    service = Breakers::Service.new(
-      name: 'facebook',
-      host: /.*facebook.com/,
-      path: /.*/
-    )
+    service = Breakers::Service.new(name: 'facebook') do |request_env|
+      request_env.uri.host =~ /.*facebook.com/
+    end
     client = Breakers::Client.new(redis_connection: Redis.new, services: [service], logger: Logger.new(STDOUT))
-    Capybara.app = Breakers::Dashboard.new(client)
+    Breakers.set_client(client)
+    Capybara.app = Breakers::Dashboard.new
   end
 
   it 'can visit the main page' do

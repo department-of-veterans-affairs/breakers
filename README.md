@@ -28,11 +28,13 @@ Or install it yourself as:
 The gem allows you to define your services like this:
 
 ```ruby
-service = Breakers::Service.new(name: 'messaging', host: /.*messaging\.va\.gov/, path: /.*/)
+service = Breakers::Service.new(name: 'messaging') do |request_env|
+  request_env.uri.host =~ /.*messaging\.va\.gov/
+end
 ```
 
-The name parameter is used for logging and reporting only. On each request, the host and path will be compared against the requested values
-to see if this service applies.
+The name parameter is used for logging and reporting only. On each request, the block will be called with the request's environment, and
+the block should return true if the service applies to it.
 
 A Breakers::Client is the basic data structure for accessing the state and creating connections. It requires a redis connection and one or
 more services:
@@ -42,13 +44,14 @@ client = Breakers::Client.new(redis_connection: redis, services: [service])
 Breakers.set_client(client)
 ```
 
-Now, you can create a new Faraday connection in your code with:
+Now, you can add the Breakers middleware to your Faraday stack while creating your connection as you normally would:
 
 ```ruby
-Breakers.new_connection
+Faraday.new('http://va.gov') do |conn|
+  conn.use :breakers
+  conn.adapter Faraday.default_adapter
+end
 ```
-
-This method takes optional `url:` and `adapter:` arguments to allow you to customize those values in the connection.
 
 ### Logging
 
