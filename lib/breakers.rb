@@ -15,7 +15,7 @@ module Breakers
   end
   # rubocop:enable Style/AccessorMethodName
 
-  def self.new_connection(url_base: nil, adapter: Faraday.default_adapter)
+  def self.new_connection(url: nil, adapter: Faraday.default_adapter)
     Faraday.new(url: url_base) do |conn|
       conn.use :breakers, @client
       conn.adapter adapter
