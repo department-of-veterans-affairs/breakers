@@ -66,6 +66,7 @@ module Breakers
         error: 'timeout',
         current_outage: current_outage
       )
+      raise
     end
 
     def handle_error(service:, request_env:, response_env:, error:, current_outage: nil)

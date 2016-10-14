@@ -79,21 +79,35 @@ describe Breakers::UptimeMiddleware do
     end
 
     it 'adds a failure to redis' do
-      connection.get '/'
+      begin
+        connection.get '/'
+      rescue Faraday::TimeoutError
+      end
       rounded_time = now.to_i - (now.to_i % 60)
       expect(redis.get("cb-VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
+    end
+
+    it 'raises the exception' do
+      expect { connection.get '/' }.to raise_error(Faraday::TimeoutError)
     end
 
     it 'logs the error' do
       expect(logger).to receive(:warn).with(
         msg: 'Breakers failed request', service: 'VA', url: 'http://va.gov/', error: 'timeout'
       )
-      connection.get '/'
+
+      begin
+        connection.get '/'
+      rescue Faraday::TimeoutError
+      end
     end
 
     it 'tells plugins about the timeout' do
       expect(plugin).to receive(:on_error).with(service, instance_of(Faraday::Env), nil)
-      connection.get '/'
+      begin
+        connection.get '/'
+      rescue Faraday::TimeoutError
+      end
     end
   end
 
