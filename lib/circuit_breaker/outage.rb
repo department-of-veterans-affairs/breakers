@@ -2,6 +2,8 @@ require 'multi_json'
 
 module CircuitBreaker
   class Outage
+    attr_reader :service
+
     def self.find_last(client:, service:)
       data = client.redis_connection.zrange("cb-#{service.name}-outages", -1, -1)[0]
       data && new(client: client, service: service, data: data)
@@ -19,7 +21,12 @@ module CircuitBreaker
     def self.create(client:, service:)
       data = MultiJson.dump(start_time: Time.now.to_i)
       client.redis_connection.zadd("cb-#{service.name}-outages", Time.now.to_i, data)
-      client.logger.error(msg: 'CircuitBreaker outage beginning', service: service.name)
+
+      client.logger&.error(msg: 'CircuitBreaker outage beginning', service: service.name)
+
+      client.plugins.each do |plugin|
+        plugin.on_outage_begin(Outage.new(client: client, service: service, data: data)) if plugin.respond_to?(:on_outage_begin)
+      end
     end
 
     def initialize(client:, service:, data:)
@@ -37,14 +44,14 @@ module CircuitBreaker
     end
 
     def end!
-      new_body = { 'start_time' => start_time.to_i, 'end_time' => Time.now.to_i }
-      key = "cb-#{@service.name}-outages"
-      @client.redis_connection.multi do
-        @client.redis_connection.zrem(key, MultiJson.dump(@body))
-        @client.redis_connection.zadd(key, start_time.to_i, MultiJson.dump(new_body))
+      new_body = @body.dup
+      new_body['end_time'] = Time.now.to_i
+      replace_body(body: new_body)
+
+      @client.logger&.info(msg: 'CircuitBreaker outage ending', service: @service.name)
+      @client.plugins.each do |plugin|
+        plugin.on_outage_end(self) if plugin.respond_to?(:on_outage_begin)
       end
-      @body = new_body
-      @client.logger.error(msg: 'CircuitBreaker outage ending', service: @service.name)
     end
 
     def start_time
@@ -59,9 +66,28 @@ module CircuitBreaker
       (@body['last_test_time'] && Time.at(@body['last_test_time'])) || start_time
     end
 
+    def update_last_test_time!
+      new_body = @body.dup
+      new_body['last_test_time'] = Time.now.to_i
+      replace_body(body: new_body)
+    end
+
     def ready_for_retest?
       (Time.now - last_test_time) > 60
     end
 
+    protected
+
+    def key
+      "cb-#{@service.name}-outages"
+    end
+
+    def replace_body(body:)
+      @client.redis_connection.multi do
+        @client.redis_connection.zrem(key, MultiJson.dump(@body))
+        @client.redis_connection.zadd(key, start_time.to_i, MultiJson.dump(body))
+      end
+      @body = body
+    end
   end
 end

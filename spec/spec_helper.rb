@@ -13,6 +13,8 @@ SimpleCov.start do
   minimum_coverage 95
 end
 
-WebMock.disable_net_connect!
+WebMock.disable_net_connect!(allow: '127.0.0.1')
 
 require 'circuit_breaker'
+
+require_relative 'example_plugin'

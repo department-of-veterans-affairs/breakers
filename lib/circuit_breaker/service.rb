@@ -30,10 +30,10 @@ module CircuitBreaker
 
     def outages_in_range(start_time:, end_time:)
       Outage.in_range(
+        client: @client,
         service: self,
         start_time: start_time,
         end_time: end_time,
-        redis: @client.redis_connection
       )
     end
 
@@ -60,16 +60,16 @@ module CircuitBreaker
     end
 
     def values_in_range(start_time:, end_time:, type:, sample_seconds: 3600)
-      start_time = align_time_on_minute(start_time)
-      end_time = align_time_on_minute(end_time)
+      start_time = align_time_on_minute(time: start_time)
+      end_time = align_time_on_minute(time: end_time)
       keys = []
       times = []
       while start_time < end_time
         times << start_time
         if type == :errors
-          keys << errors_key(start_time)
+          keys << errors_key(time: start_time)
         elsif type == :successes
-          keys << successes_key(start_time)
+          keys << successes_key(time: start_time)
         end
         start_time += sample_seconds
       end

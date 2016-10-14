@@ -6,7 +6,7 @@ require 'rack/test'
 
 Capybara.javascript_driver = :poltergeist
 
-describe CircuitBreaker::Dashboard, :integration, type: :feature do
+describe CircuitBreaker::Dashboard, :integration, type: :feature, js: true do
   before(:all) do
     service = CircuitBreaker::Service.new(
       name: 'facebook',
@@ -20,5 +20,15 @@ describe CircuitBreaker::Dashboard, :integration, type: :feature do
   it 'can visit the main page' do
     visit '/'
     expect(page).to have_content('Dashboard')
+  end
+
+  it 'shows the services' do
+    visit '/'
+    expect(page).to have_content('facebook')
+  end
+
+  it 'can visit the requests page' do
+    visit '/requests'
+    expect(page).to have_content('facebook')
   end
 end

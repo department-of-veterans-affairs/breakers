@@ -10,6 +10,11 @@ module CircuitBreaker
 
     def call(request_env)
       service = @client.service_for_url(url: request_env.url)
+
+      if !service
+        return @app.call(request_env)
+      end
+
       last_outage = service.last_outage
 
       if last_outage && !last_outage.ended?
@@ -38,26 +43,45 @@ module CircuitBreaker
     def handle_request(service:, request_env:, current_outage: nil)
       return @app.call(request_env).on_complete do |response_env|
         if response_env.status >= 500
-          service.add_error
-          @client.logger.warn(
-            msg: 'CircuitBreaker failed request',
-            service: service.name,
-            url: request_env.url.to_s,
-            error: response_env.status
+          handle_error(
+            service: service,
+            request_env: request_env,
+            response_env: response_env,
+            error: response_env.status,
+            current_outage: current_outage
           )
         else
           service.add_success
           current_outage&.end!
+
+          @client.plugins.each do |plugin|
+            plugin.on_success(service, request_env, response_env) if plugin.respond_to?(:on_success)
+          end
         end
       end
     rescue Faraday::TimeoutError
+      handle_error(
+        service: service,
+        request_env: request_env,
+        response_env: nil,
+        error: 'timeout',
+        current_outage: current_outage
+      )
+    end
+
+    def handle_error(service:, request_env:, response_env:, error:, current_outage: nil)
       service.add_error
-      @client.logger.warn(
+      current_outage&.update_last_test_time!
+
+      @client.logger&.warn(
         msg: 'CircuitBreaker failed request',
         service: service.name,
         url: request_env.url.to_s,
-        error: 'timeout'
+        error: error
       )
+      @client.plugins.each do |plugin|
+        plugin.on_error(service, request_env, response_env) if plugin.respond_to?(:on_error)
+      end
     end
   end
 end

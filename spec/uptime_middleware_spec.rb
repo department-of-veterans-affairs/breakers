@@ -10,8 +10,14 @@ describe CircuitBreaker::UptimeMiddleware do
     )
   end
   let(:logger) { Logger.new(nil) }
+  let(:plugin) { ExamplePlugin.new }
   let(:client) do
-    CircuitBreaker::Client.new(redis_connection: redis, services: [service], logger: logger)
+    CircuitBreaker::Client.new(
+      redis_connection: redis,
+      services: [service],
+      logger: logger,
+      plugins: [plugin]
+    )
   end
   let(:connection) do
     Faraday.new(url: 'http://va.gov') do |conn|
@@ -46,8 +52,18 @@ describe CircuitBreaker::UptimeMiddleware do
       connection.get '/'
     end
 
+    it 'tells plugins about the error' do
+      expect(plugin).to receive(:on_error).with(service, instance_of(Faraday::Env), instance_of(Faraday::Env))
+      connection.get '/'
+    end
+
     it 'logs the outage' do
       expect(logger).to receive(:error).with(msg: 'CircuitBreaker outage beginning', service: 'VA')
+      connection.get '/'
+    end
+
+    it 'tells plugins about the outage' do
+      expect(plugin).to receive(:on_outage_begin).with(instance_of(CircuitBreaker::Outage))
       connection.get '/'
     end
   end
@@ -64,6 +80,18 @@ describe CircuitBreaker::UptimeMiddleware do
       connection.get '/'
       rounded_time = now.to_i - (now.to_i % 60)
       expect(redis.get("cb-VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
+    end
+
+    it 'logs the error' do
+      expect(logger).to receive(:warn).with(
+        msg: 'CircuitBreaker failed request', service: 'VA', url: 'http://va.gov/', error: 'timeout'
+      )
+      connection.get '/'
+    end
+
+    it 'tells plugins about the timeout' do
+      expect(plugin).to receive(:on_error).with(service, instance_of(Faraday::Env), nil)
+      connection.get '/'
     end
   end
 
@@ -107,6 +135,11 @@ describe CircuitBreaker::UptimeMiddleware do
       count = redis.get("cb-VA-successes-#{rounded_time}")
       expect(count).to eq('1')
     end
+
+    it 'informs the plugin about the success' do
+      expect(plugin).to receive(:on_success).with(service, instance_of(Faraday::Env), instance_of(Faraday::Env))
+      connection.get '/'
+    end
   end
 
   context 'there is an outage that started over a minute ago' do
@@ -139,9 +172,53 @@ describe CircuitBreaker::UptimeMiddleware do
       end
 
       it 'logs the end of the outage' do
-        expect(logger).to receive(:error).with(msg: 'CircuitBreaker outage ending', service: 'VA')
+        expect(logger).to receive(:info).with(msg: 'CircuitBreaker outage ending', service: 'VA')
         connection.get '/'
       end
+
+      it 'tells the plugin about the end of the outage' do
+        expect(plugin).to receive(:on_outage_end).with(instance_of(CircuitBreaker::Outage))
+        connection.get '/'
+      end
+    end
+
+    context 'and the new request is not successful' do
+      before do
+        stub_request(:get, 'va.gov').to_return(status: 500, body: 'abcdef')
+      end
+
+      it 'should make the request' do
+        connection.get '/'
+        expect(WebMock).to have_requested(:get, 'va.gov')
+      end
+
+      it 'returns a 500' do
+        response = connection.get '/'
+        expect(response.status).to eq(500)
+      end
+
+      it 'updates the last_test_time in the outate' do
+        connection.get '/'
+        expect(service.last_outage.last_test_time.to_i).to eq(now.to_i)
+      end
+
+      it 'gets a 503 when making another request' do
+        connection.get '/'
+        response = connection.get '/'
+        expect(response.status).to eq(503)
+      end
+    end
+  end
+
+  context 'on a request to a non-service' do
+    before do
+      stub_request(:get, 'http://whitehouse.gov').to_return(status: 200, body: 'POTUS')
+    end
+
+    it 'returns the status and body from the response' do
+      response = connection.get('http://whitehouse.gov')
+      expect(response.status).to eq(200)
+      expect(response.body).to eq('POTUS')
     end
   end
 

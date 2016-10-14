@@ -33,7 +33,7 @@ module CircuitBreaker
     end
 
     get '/outages.json' do
-      service = @client.service_for_uri_name(params[:service])
+      service = @client.service_for_uri_name(name: params[:service])
       if !service
         status 404
         { error: "Service #{params[:service]} not found" }.to_json
@@ -44,7 +44,7 @@ module CircuitBreaker
     end
 
     get '/requests.json' do
-      service = @client.service_for_uri_name(params[:service])
+      service = @client.service_for_uri_name(name: params[:service])
       if !service
         status 404
         { error: "Service #{params[:service]} not found" }.to_json
