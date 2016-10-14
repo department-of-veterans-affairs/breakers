@@ -14,7 +14,7 @@ module Breakers
 
     def service_for_request(request_env:)
       @services.find do |service|
-        service.evaluator.call(request_env)
+        service.handles_request?(request_env)
       end
     end
 

@@ -28,9 +28,12 @@ Or install it yourself as:
 The gem allows you to define your services like this:
 
 ```ruby
-service = Breakers::Service.new(name: 'messaging') do |request_env|
-  request_env.uri.host =~ /.*messaging\.va\.gov/
-end
+service = Breakers::Service.new(
+  name: 'messaging',
+  request_matcher: proc { |request_env| request_env.url.host =~ /.*messaging\.va\.gov/ },
+  seconds_before_retry: 60,
+  error_threshold: 50
+)
 ```
 
 The name parameter is used for logging and reporting only. On each request, the block will be called with the request's environment, and

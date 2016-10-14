@@ -2,14 +2,26 @@ require 'uri'
 
 module Breakers
   class Service
-    attr_reader :name
-    attr_reader :evaluator
+    DEFAULT_OPTS = {
+      seconds_before_retry: 60,
+      error_threshold: 50,
+      data_retention_seconds: 60 * 60 * 24 * 30
+    }.freeze
 
-    ONE_MONTH = 60 * 60 * 24 * 30
+    def initialize(opts)
+      @configuration = DEFAULT_OPTS.merge(opts)
+    end
 
-    def initialize(name:, &block)
-      @name = name
-      @evaluator = block
+    def name
+      @configuration[:name]
+    end
+
+    def handles_request?(request_env)
+      @configuration[:request_matcher].call(request_env)
+    end
+
+    def seconds_before_retry
+      @configuration[:seconds_before_retry]
     end
 
     def add_error
@@ -77,7 +89,7 @@ module Breakers
     def increment_key(key:)
       Breakers.client.redis_connection.multi do
         Breakers.client.redis_connection.incr(key)
-        Breakers.client.redis_connection.expire(key, ONE_MONTH)
+        Breakers.client.redis_connection.expire(key, @configuration[:data_retention_seconds])
       end
     end
 
@@ -101,7 +113,7 @@ module Breakers
         Outage.create(service: self)
       else
         failure_rate = failure_count / (failure_count + success_count).to_f
-        if failure_rate >= 0.5
+        if failure_rate >= @configuration[:error_threshold] / 100.0
           Outage.create(service: self)
         end
       end

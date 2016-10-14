@@ -3,9 +3,12 @@ require 'spec_helper'
 describe Breakers::UptimeMiddleware do
   let(:redis) { Redis.new }
   let(:service) do
-    Breakers::Service.new(name: 'VA') do |request_env|
-      request_env.url.host =~ /.*va.gov/
-    end
+    Breakers::Service.new(
+      name: 'VA',
+      request_matcher: proc { |request_env| request_env.url.host =~ /.*va.gov/ },
+      seconds_before_retry: 60,
+      error_threshold: 50
+    )
   end
   let(:logger) { Logger.new(nil) }
   let(:plugin) { ExamplePlugin.new }
@@ -93,7 +96,7 @@ describe Breakers::UptimeMiddleware do
 
     it 'logs the error' do
       expect(logger).to receive(:warn).with(
-        msg: 'Breakers failed request', service: 'VA', url: 'http://va.gov/', error: 'timeout'
+        msg: 'Breakers failed request', service: 'VA', url: 'http://va.gov/', error: 'Faraday::TimeoutError - execution expired'
       )
 
       begin
@@ -107,6 +110,47 @@ describe Breakers::UptimeMiddleware do
       begin
         connection.get '/'
       rescue Faraday::TimeoutError
+      end
+    end
+  end
+
+  context 'with some other error' do
+    let(:now) { Time.now }
+
+    before do
+      Timecop.freeze(now)
+      stub_request(:get, 'va.gov').to_raise('bogus error')
+    end
+
+    it 'adds a failure to redis' do
+      begin
+        connection.get '/'
+      rescue
+      end
+      rounded_time = now.to_i - (now.to_i % 60)
+      expect(redis.get("cb-VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
+    end
+
+    it 'raises the exception' do
+      expect { connection.get '/' }.to raise_error(StandardError)
+    end
+
+    it 'logs the error' do
+      expect(logger).to receive(:warn).with(
+        msg: 'Breakers failed request', service: 'VA', url: 'http://va.gov/', error: 'StandardError - bogus error'
+      )
+
+      begin
+        connection.get '/'
+      rescue
+      end
+    end
+
+    it 'tells plugins about the timeout' do
+      expect(plugin).to receive(:on_error).with(service, instance_of(Faraday::Env), nil)
+      begin
+        connection.get '/'
+      rescue
       end
     end
   end

@@ -71,8 +71,8 @@ module Breakers
       replace_body(body: new_body)
     end
 
-    def ready_for_retest?
-      (Time.now - last_test_time) > 60
+    def ready_for_retest?(wait_seconds:)
+      (Time.now - last_test_time) > wait_seconds
     end
 
     protected

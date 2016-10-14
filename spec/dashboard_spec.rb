@@ -8,9 +8,12 @@ Capybara.javascript_driver = :poltergeist
 
 describe Breakers::Dashboard, :integration, type: :feature, js: true do
   before(:all) do
-    service = Breakers::Service.new(name: 'facebook') do |request_env|
-      request_env.uri.host =~ /.*facebook.com/
-    end
+    service = Breakers::Service.new(
+      name: 'facebook',
+      request_matcher: proc { |request_env| request_env.url.host =~ /.*facebook.com/ },
+      seconds_before_retry: 60,
+      error_threshold: 50
+    )
     client = Breakers::Client.new(redis_connection: Redis.new, services: [service], logger: Logger.new(STDOUT))
     Breakers.set_client(client)
     Capybara.app = Breakers::Dashboard.new

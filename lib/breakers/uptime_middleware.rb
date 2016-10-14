@@ -17,7 +17,7 @@ module Breakers
       last_outage = service.last_outage
 
       if last_outage && !last_outage.ended?
-        if last_outage.ready_for_retest?
+        if last_outage.ready_for_retest?(wait_seconds: service.seconds_before_retry)
           handle_request(service: service, request_env: request_env, current_outage: last_outage)
         else
           outage_response(outage: last_outage, service: service)
@@ -58,12 +58,12 @@ module Breakers
           end
         end
       end
-    rescue Faraday::TimeoutError
+    rescue => e
       handle_error(
         service: service,
         request_env: request_env,
         response_env: nil,
-        error: 'timeout',
+        error: "#{e.class.name} - #{e.message}",
         current_outage: current_outage
       )
       raise
