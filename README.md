@@ -3,7 +3,7 @@
 Breakers is a Ruby gem that implements the circuit breaker pattern for Ruby using a Faraday middleware. It is designed to handle the case
 where your app communicates with one or more backend services over HTTP and those services could possibly go down. Data about the success
 and failure of requests is recorded in Redis, and the gem uses this to determine when an outage occurs. While a service is marked as down,
-requests will continue to flow through every minute to check if it has returned to being alive.
+requests will continue to flow through occasionally to check if it has returned to being alive.
 
 ## Installation
 
@@ -21,11 +21,38 @@ Or install it yourself as:
 
     $ gem install breakers
 
+## Quick Start
+
+```ruby
+service = Breakers::Service.new(
+  name: 'messaging',
+  request_matcher: proc { |request_env| request_env.url.host =~ /.*messaging\.va\.gov/ }
+)
+
+client = Breakers::Client.new(redis_connection: redis, services: [service])
+
+Breakers.set_client(client)
+
+connection = Faraday.new do |conn|
+  conn.use :breakers
+  conn.adapter Faraday.default_adapter
+end
+
+response = connection.get 'http://messaging.va.gov/query'
+```
+
+This will track all requests to messaging.va.gov and will stop sending requests to it for one minute when the error rate reaches 50% over a
+two minute period.
+
 ## Usage
 
-### Getting Connected
+For more advanced usage and an explanation of the code above, keep reading.
 
-The gem allows you to define your services like this:
+### Services
+
+In an application where you rely on a number of backend services with different endpoints, outage characteristics, and levels of reliability,
+breakers lets you configure each of those services globally and then apply a Faraday middleware that uses them to track changes. Services
+are defined like this:
 
 ```ruby
 service = Breakers::Service.new(
@@ -39,15 +66,48 @@ service = Breakers::Service.new(
 The name parameter is used for logging and reporting only. On each request, the block will be called with the request's environment, and
 the block should return true if the service applies to it.
 
-A Breakers::Client is the basic data structure for accessing the state and creating connections. It requires a redis connection and one or
-more services:
+Each service can be further configured with the following:
+
+* `seconds_before_retry` - The number of seconds to wait before sending a new request when an outage is reported. Every N seconds, a new request will be sent, and if it succeeds the outage will be ended. Defaults to 60.
+* `error_threshold` - The percentage of errors over which an outage will be reported. Defaults to 50.
+* `data_retention_seconds` - The number of seconds for which data will be stored in Redis for successful and unsuccessful request counts. See below for information on the structure of data within Redis. Defaults to 30 days.
+
+### Client
+
+A Breakers::Client is the data structure that contains all of the information needed to operate the system, and it provides a query API for
+accessing the current state. It is initialized with a redis connection and one or more services, with options for a set of plugins and a logger:
 
 ```ruby
-client = Breakers::Client.new(redis_connection: redis, services: [service])
+client = Breakers::Client.new(
+  redis_connection: redis,
+  services: [service],
+  logger: logger,
+  plugins: [plugin]
+)
+```
+
+The logger should conform to Ruby's Logger API. See more information on plugins below.
+
+### Global Configuration
+
+The client can be configured globally with:
+
+```ruby
 Breakers.set_client(client)
 ```
 
-Now, you can add the Breakers middleware to your Faraday stack while creating your connection as you normally would:
+In a Rails app, it makes sense to create the services and client in an initializer and then apply them with this call. If you would like to
+namespace the data in Redis with a prefix, you can make that happen with:
+
+```ruby
+Breakers.redis_prefix = 'custom-'
+```
+
+The default prefix is brk-.
+
+### Using the Middleware
+
+Once the global configuration is in place, use the middleware as you would normally in Faraday:
 
 ```ruby
 Faraday.new('http://va.gov') do |conn|
@@ -77,6 +137,16 @@ class ExamplePlugin
   def on_success(service, request_env, response_env); end
 end
 ```
+
+It's ok for your plugin to implement only part of this interface.
+
+### Redis Data Structure
+
+Data is stored in Redis with the following structure:
+
+* {prefix}-{service_name}-errors-{unix_timestamp} - A set of keys that store the number of errors by service for each minute. By default these are kept for one month, but you can customize that timestamp with the `data_retention_seconds` argument when creating a service.
+* {prefix}-{service_name}-successes-{unix_timestamp} - Same as above but counts for successful requests.
+* {prefix}-{service_name}-outages - A sorted set that stores the actual outages. The sort value is the unix timestamp at which the outage occurred, and each entry stores a JSON document containing the start and end times for the outage.
 
 ## Development
 
