@@ -17,11 +17,5 @@ module Breakers
         service.handles_request?(request_env)
       end
     end
-
-    def service_for_uri_name(name:)
-      @services.find do |service|
-        service.uri_name == name
-      end
-    end
   end
 end

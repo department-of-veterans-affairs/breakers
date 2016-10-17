@@ -1,7 +1,7 @@
 require 'logger'
 require 'spec_helper'
 
-describe Breakers::UptimeMiddleware do
+describe 'integration suite' do
   let(:redis) { Redis.new }
   let(:service) do
     Breakers::Service.new(
@@ -71,6 +71,13 @@ describe Breakers::UptimeMiddleware do
     it 'tells plugins about the outage' do
       expect(plugin).to receive(:on_outage_begin).with(instance_of(Breakers::Outage))
       connection.get '/'
+    end
+
+    it 'lets me query for errors in a time range' do
+      connection.get '/'
+      counts = service.errors_in_range(start_time: now - 120, end_time: now, sample_seconds: 60)
+      count = counts.map { |c| c[:count] }.inject(0) { |a, b| a + b }
+      expect(count).to eq(1)
     end
   end
 
@@ -211,6 +218,13 @@ describe Breakers::UptimeMiddleware do
       redis.zadd('brk-VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i))
     end
 
+    it 'lets me query for the outage by time range' do
+      outages = service.outages_in_range(start_time: start_time, end_time: now)
+      expect(outages.count).to eq(1)
+      expect(outages.first.start_time.to_i).to eq(start_time.to_i)
+      expect(outages.first.end_time).to be_nil
+    end
+
     context 'and the new request is successful' do
       before do
         stub_request(:get, 'va.gov').to_return(status: 200, body: 'abcdef')
@@ -240,6 +254,11 @@ describe Breakers::UptimeMiddleware do
       it 'tells the plugin about the end of the outage' do
         expect(plugin).to receive(:on_outage_end).with(instance_of(Breakers::Outage))
         connection.get '/'
+      end
+
+      it 'records the end time in the outage' do
+        connection.get '/'
+        expect(service.last_outage.end_time.to_i).to eq(now.to_i)
       end
     end
 
@@ -312,6 +331,12 @@ describe Breakers::UptimeMiddleware do
       stub_request(:get, 'va.gov').to_return(status: 500)
       100.times { connection.get '/' }
       expect(service.last_outage).to be
+    end
+
+    it 'lets me query for successes in a time range' do
+      counts = service.successes_in_range(start_time: now - 120, end_time: now, sample_seconds: 60)
+      count = counts.map { |c| c[:count] }.inject(0) { |a, b| a + b }
+      expect(count).to eq(100)
     end
   end
 end

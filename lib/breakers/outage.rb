@@ -3,6 +3,7 @@ require 'multi_json'
 module Breakers
   class Outage
     attr_reader :service
+    attr_reader :body
 
     def self.find_last(service:)
       data = Breakers.client.redis_connection.zrange(outages_key(service: service), -1, -1)[0]
@@ -38,10 +39,6 @@ module Breakers
       @service = service
     end
 
-    def to_json(*options)
-      @body.to_json(*options)
-    end
-
     def ended?
       @body.key?('end_time')
     end
@@ -58,11 +55,11 @@ module Breakers
     end
 
     def start_time
-      Time.at(@body['start_time']).utc
+      @body['start_time'] && Time.at(@body['start_time']).utc
     end
 
     def end_time
-      Time.at(@body['end_time']).utc
+      @body['end_time'] && Time.at(@body['end_time']).utc
     end
 
     def last_test_time

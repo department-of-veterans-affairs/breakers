@@ -1,5 +1,3 @@
-require 'uri'
-
 module Breakers
   class Service
     DEFAULT_OPTS = {
@@ -45,16 +43,12 @@ module Breakers
       )
     end
 
-    def successes_in_range(start_time:, end_time:)
-      values_in_range(start_time: start_time, end_time: end_time, type: :successes)
+    def successes_in_range(start_time:, end_time:, sample_seconds: 3600)
+      values_in_range(start_time: start_time, end_time: end_time, type: :successes, sample_seconds: sample_seconds)
     end
 
-    def errors_in_range(start_time:, end_time:)
-      values_in_range(start_time: start_time, end_time: end_time, type: :errors)
-    end
-
-    def uri_name
-      URI.escape(name)
+    def errors_in_range(start_time:, end_time:, sample_seconds: 3600)
+      values_in_range(start_time: start_time, end_time: end_time, type: :errors, sample_seconds: sample_seconds)
     end
 
     protected
@@ -67,12 +61,12 @@ module Breakers
       "#{Breakers.redis_prefix}#{name}-successes-#{align_time_on_minute(time: time).to_i}"
     end
 
-    def values_in_range(start_time:, end_time:, type:, sample_seconds: 3600)
+    def values_in_range(start_time:, end_time:, type:, sample_seconds:)
       start_time = align_time_on_minute(time: start_time)
       end_time = align_time_on_minute(time: end_time)
       keys = []
       times = []
-      while start_time < end_time
+      while start_time <= end_time
         times << start_time
         if type == :errors
           keys << errors_key(time: start_time)
