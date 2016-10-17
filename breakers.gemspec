@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
   spec.summary       = 'Handle outages to backend systems with a Faraday middleware'
   spec.description   = 'This is a Faraday middleware that detects backend outages and reacts to them'
   spec.homepage      = 'https://github.com/department-of-veterans-affairs/breakers'
-  spec.license       = 'CC0 1.0 Universal'
+  spec.license       = 'CC0-1.0'
 
   spec.files = `git ls-files -z`.split("\x0").reject do |f|
     f.match(%r{^(test|spec|features)/})
@@ -21,16 +21,16 @@ Gem::Specification.new do |spec|
   spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
   spec.require_paths = ['lib']
 
-  spec.add_dependency 'faraday'
-  spec.add_dependency 'multi_json'
+  spec.add_dependency 'faraday', ['>= 0.7.4', '< 0.10']
+  spec.add_dependency 'multi_json', '~> 1.0'
 
-  spec.add_development_dependency 'bundler'
-  spec.add_development_dependency 'byebug'
-  spec.add_development_dependency 'fakeredis'
-  spec.add_development_dependency 'rake'
-  spec.add_development_dependency 'rspec'
-  spec.add_development_dependency 'rubocop'
-  spec.add_development_dependency 'simplecov'
-  spec.add_development_dependency 'timecop'
-  spec.add_development_dependency 'webmock'
+  spec.add_development_dependency 'bundler', '~> 1.0'
+  spec.add_development_dependency 'byebug', '~> 9.0'
+  spec.add_development_dependency 'fakeredis', '~> 0.6.0'
+  spec.add_development_dependency 'rake', '~> 11.0'
+  spec.add_development_dependency 'rspec', '~> 3.0'
+  spec.add_development_dependency 'rubocop', '0.43.0'
+  spec.add_development_dependency 'simplecov', '~> 0.12.0'
+  spec.add_development_dependency 'timecop', '~> 0.8.0'
+  spec.add_development_dependency 'webmock', '~> 2.1'
 end
