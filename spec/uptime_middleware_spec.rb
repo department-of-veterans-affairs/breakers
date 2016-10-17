@@ -1,3 +1,4 @@
+require 'logger'
 require 'spec_helper'
 
 describe Breakers::UptimeMiddleware do
@@ -156,7 +157,7 @@ describe Breakers::UptimeMiddleware do
   end
 
   context 'there is an outage that started less than a minute ago' do
-    let(:start_time) { Time.now - 30.seconds }
+    let(:start_time) { Time.now - 30 }
     let(:now) { Time.now }
     before do
       Timecop.freeze(now)
@@ -175,8 +176,8 @@ describe Breakers::UptimeMiddleware do
   end
 
   context 'there is a completed outage' do
-    let(:start_time) { Time.now - 1.hour }
-    let(:end_time) { Time.now - 1.minute }
+    let(:start_time) { Time.now - (60 * 60) }
+    let(:end_time) { Time.now - 60 }
     let(:now_time) { Time.now }
     before do
       Timecop.freeze(now_time)
@@ -203,7 +204,7 @@ describe Breakers::UptimeMiddleware do
   end
 
   context 'there is an outage that started over a minute ago' do
-    let(:start_time) { Time.now - 2.minutes }
+    let(:start_time) { Time.now - 120 }
     let(:now) { Time.now }
     before do
       Timecop.freeze(now)
@@ -286,11 +287,11 @@ describe Breakers::UptimeMiddleware do
     let(:now) { Time.now }
 
     before do
-      Timecop.freeze(now - 90.seconds)
+      Timecop.freeze(now - 90)
       stub_request(:get, 'va.gov').to_return(status: 200, body: 'abcdef')
       60.times { connection.get '/' }
 
-      Timecop.freeze(now - 30.seconds)
+      Timecop.freeze(now - 30)
       stub_request(:get, 'va.gov').to_return(status: 200, body: 'abcdef')
       40.times { connection.get '/' }
     end

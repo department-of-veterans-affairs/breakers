@@ -11,8 +11,8 @@ Gem::Specification.new do |spec|
 
   spec.summary       = 'Handle outages to backend systems with a Faraday middleware'
   spec.description   = 'This is a Faraday middleware that detects backend outages and reacts to them'
-  spec.homepage      = ''
-  spec.license       = 'MIT'
+  spec.homepage      = 'https://github.com/department-of-veterans-affairs/breakers'
+  spec.license       = 'CC0 1.0 Universal'
 
   # Prevent pushing this gem to RubyGems.org. To allow pushes either set the 'allowed_push_host'
   # to allow pushing to a single host or delete this section to allow pushing to any host.
@@ -33,12 +33,9 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'multi_json'
   spec.add_dependency 'sinatra'
 
-  spec.add_development_dependency 'activesupport'
   spec.add_development_dependency 'bundler'
   spec.add_development_dependency 'byebug'
-  spec.add_development_dependency 'capybara'
   spec.add_development_dependency 'fakeredis'
-  spec.add_development_dependency 'poltergeist'
   spec.add_development_dependency 'rake'
   spec.add_development_dependency 'rspec'
   spec.add_development_dependency 'rubocop'
