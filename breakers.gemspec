@@ -31,7 +31,6 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency 'faraday'
   spec.add_dependency 'multi_json'
-  spec.add_dependency 'sinatra'
 
   spec.add_development_dependency 'bundler'
   spec.add_development_dependency 'byebug'
