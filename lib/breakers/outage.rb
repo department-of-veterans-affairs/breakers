@@ -5,13 +5,13 @@ module Breakers
     attr_reader :service
 
     def self.find_last(service:)
-      data = Breakers.client.redis_connection.zrange("cb-#{service.name}-outages", -1, -1)[0]
+      data = Breakers.client.redis_connection.zrange(outages_key(service: service), -1, -1)[0]
       data && new(service: service, data: data)
     end
 
     def self.in_range(service:, start_time:, end_time:)
       data = Breakers.client.redis_connection.zrangebyscore(
-        "cb-#{service.name}-outages",
+        outages_key(service: service),
         start_time.to_i,
         end_time.to_i
       )
@@ -19,14 +19,18 @@ module Breakers
     end
 
     def self.create(service:)
-      data = MultiJson.dump(start_time: Time.now.to_i)
-      Breakers.client.redis_connection.zadd("cb-#{service.name}-outages", Time.now.to_i, data)
+      data = MultiJson.dump(start_time: Time.now.utc.to_i)
+      Breakers.client.redis_connection.zadd(outages_key(service: service), Time.now.utc.to_i, data)
 
       Breakers.client.logger&.error(msg: 'Breakers outage beginning', service: service.name)
 
       Breakers.client.plugins.each do |plugin|
         plugin.on_outage_begin(Outage.new(service: service, data: data)) if plugin.respond_to?(:on_outage_begin)
       end
+    end
+
+    def self.outages_key(service:)
+      "#{Breakers.redis_prefix}#{service.name}-outages"
     end
 
     def initialize(service:, data:)
@@ -44,7 +48,7 @@ module Breakers
 
     def end!
       new_body = @body.dup
-      new_body['end_time'] = Time.now.to_i
+      new_body['end_time'] = Time.now.utc.to_i
       replace_body(body: new_body)
 
       Breakers.client.logger&.info(msg: 'Breakers outage ending', service: @service.name)
@@ -54,31 +58,31 @@ module Breakers
     end
 
     def start_time
-      Time.at(@body['start_time'])
+      Time.at(@body['start_time']).utc
     end
 
     def end_time
-      Time.at(@body['end_time'])
+      Time.at(@body['end_time']).utc
     end
 
     def last_test_time
-      (@body['last_test_time'] && Time.at(@body['last_test_time'])) || start_time
+      (@body['last_test_time'] && Time.at(@body['last_test_time']).utc) || start_time
     end
 
     def update_last_test_time!
       new_body = @body.dup
-      new_body['last_test_time'] = Time.now.to_i
+      new_body['last_test_time'] = Time.now.utc.to_i
       replace_body(body: new_body)
     end
 
     def ready_for_retest?(wait_seconds:)
-      (Time.now - last_test_time) > wait_seconds
+      (Time.now.utc - last_test_time) > wait_seconds
     end
 
     protected
 
     def key
-      "cb-#{@service.name}-outages"
+      "#{Breakers.redis_prefix}#{@service.name}-outages"
     end
 
     def replace_body(body:)

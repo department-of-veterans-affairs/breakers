@@ -33,7 +33,7 @@ describe Breakers::UptimeMiddleware do
   end
 
   context 'with a 500' do
-    let(:now) { Time.now }
+    let(:now) { Time.now.utc }
 
     before do
       Timecop.freeze(now)
@@ -43,7 +43,7 @@ describe Breakers::UptimeMiddleware do
     it 'adds a failure to redis' do
       connection.get '/'
       rounded_time = now.to_i - (now.to_i % 60)
-      expect(redis.get("cb-VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
+      expect(redis.get("brk-VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
     end
 
     it 'creates an outage' do
@@ -75,7 +75,7 @@ describe Breakers::UptimeMiddleware do
   end
 
   context 'with a timeout' do
-    let(:now) { Time.now }
+    let(:now) { Time.now.utc }
 
     before do
       Timecop.freeze(now)
@@ -88,7 +88,7 @@ describe Breakers::UptimeMiddleware do
       rescue Faraday::TimeoutError
       end
       rounded_time = now.to_i - (now.to_i % 60)
-      expect(redis.get("cb-VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
+      expect(redis.get("brk-VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
     end
 
     it 'raises the exception' do
@@ -116,7 +116,7 @@ describe Breakers::UptimeMiddleware do
   end
 
   context 'with some other error' do
-    let(:now) { Time.now }
+    let(:now) { Time.now.utc }
 
     before do
       Timecop.freeze(now)
@@ -129,7 +129,7 @@ describe Breakers::UptimeMiddleware do
       rescue
       end
       rounded_time = now.to_i - (now.to_i % 60)
-      expect(redis.get("cb-VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
+      expect(redis.get("brk-VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
     end
 
     it 'raises the exception' do
@@ -157,11 +157,11 @@ describe Breakers::UptimeMiddleware do
   end
 
   context 'there is an outage that started less than a minute ago' do
-    let(:start_time) { Time.now - 30 }
-    let(:now) { Time.now }
+    let(:start_time) { Time.now.utc - 30 }
+    let(:now) { Time.now.utc }
     before do
       Timecop.freeze(now)
-      redis.zadd('cb-VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i))
+      redis.zadd('brk-VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i))
     end
 
     it 'should return a 503' do
@@ -176,12 +176,12 @@ describe Breakers::UptimeMiddleware do
   end
 
   context 'there is a completed outage' do
-    let(:start_time) { Time.now - (60 * 60) }
-    let(:end_time) { Time.now - 60 }
-    let(:now_time) { Time.now }
+    let(:start_time) { Time.now.utc - (60 * 60) }
+    let(:end_time) { Time.now.utc - 60 }
+    let(:now_time) { Time.now.utc }
     before do
       Timecop.freeze(now_time)
-      redis.zadd('cb-VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i, end_time: end_time))
+      redis.zadd('brk-VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i, end_time: end_time))
       stub_request(:get, 'va.gov').to_return(status: 200)
     end
 
@@ -193,7 +193,7 @@ describe Breakers::UptimeMiddleware do
     it 'adds a success to redis' do
       connection.get '/'
       rounded_time = now_time.to_i - (now_time.to_i % 60)
-      count = redis.get("cb-VA-successes-#{rounded_time}")
+      count = redis.get("brk-VA-successes-#{rounded_time}")
       expect(count).to eq('1')
     end
 
@@ -204,11 +204,11 @@ describe Breakers::UptimeMiddleware do
   end
 
   context 'there is an outage that started over a minute ago' do
-    let(:start_time) { Time.now - 120 }
-    let(:now) { Time.now }
+    let(:start_time) { Time.now.utc - 120 }
+    let(:now) { Time.now.utc }
     before do
       Timecop.freeze(now)
-      redis.zadd('cb-VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i))
+      redis.zadd('brk-VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i))
     end
 
     context 'and the new request is successful' do
@@ -284,7 +284,7 @@ describe Breakers::UptimeMiddleware do
   end
 
   context 'with a bunch of successes over the last few minutes' do
-    let(:now) { Time.now }
+    let(:now) { Time.now.utc }
 
     before do
       Timecop.freeze(now - 90)

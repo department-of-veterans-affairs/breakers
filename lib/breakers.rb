@@ -18,4 +18,12 @@ module Breakers
   def self.client
     @client
   end
+
+  def self.redis_prefix=(prefix)
+    @redis_prefix = prefix
+  end
+
+  def self.redis_prefix
+    @redis_prefix || 'brk-'
+  end
 end

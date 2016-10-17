@@ -60,11 +60,11 @@ module Breakers
     protected
 
     def errors_key(time: nil)
-      "cb-#{name}-errors-#{align_time_on_minute(time: time).to_i}"
+      "#{Breakers.redis_prefix}#{name}-errors-#{align_time_on_minute(time: time).to_i}"
     end
 
     def successes_key(time: nil)
-      "cb-#{name}-successes-#{align_time_on_minute(time: time).to_i}"
+      "#{Breakers.redis_prefix}#{name}-successes-#{align_time_on_minute(time: time).to_i}"
     end
 
     def values_in_range(start_time:, end_time:, type:, sample_seconds: 3600)
@@ -95,16 +95,16 @@ module Breakers
 
     # Take the current or given time and round it down to the nearest minute
     def align_time_on_minute(time: nil)
-      time = (time || Time.now).to_i
+      time = (time || Time.now.utc).to_i
       time - (time % 60)
     end
 
     def maybe_create_outage
       data = Breakers.client.redis_connection.multi do
-        Breakers.client.redis_connection.get(errors_key(time: Time.now))
-        Breakers.client.redis_connection.get(errors_key(time: Time.now - 60))
-        Breakers.client.redis_connection.get(successes_key(time: Time.now))
-        Breakers.client.redis_connection.get(successes_key(time: Time.now - 60))
+        Breakers.client.redis_connection.get(errors_key(time: Time.now.utc))
+        Breakers.client.redis_connection.get(errors_key(time: Time.now.utc - 60))
+        Breakers.client.redis_connection.get(successes_key(time: Time.now.utc))
+        Breakers.client.redis_connection.get(successes_key(time: Time.now.utc - 60))
       end
       failure_count = data[0].to_i + data[1].to_i
       success_count = data[2].to_i + data[3].to_i
