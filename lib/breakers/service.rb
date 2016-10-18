@@ -31,8 +31,19 @@ module Breakers
       increment_key(key: successes_key)
     end
 
-    def last_outage
-      Outage.find_last(service: self)
+    def begin_forced_outage!
+      Outage.create(service: self, forced: true)
+    end
+
+    def end_forced_outage!
+      latest = Outage.find_latest(service: self)
+      if latest.forced?
+        latest.end!
+      end
+    end
+
+    def latest_outage
+      Outage.find_latest(service: self)
     end
 
     def outages_in_range(start_time:, end_time:)

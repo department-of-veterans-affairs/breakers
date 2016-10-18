@@ -5,7 +5,7 @@ module Breakers
     attr_reader :service
     attr_reader :body
 
-    def self.find_last(service:)
+    def self.find_latest(service:)
       data = Breakers.client.redis_connection.zrange(outages_key(service: service), -1, -1)[0]
       data && new(service: service, data: data)
     end
@@ -19,11 +19,11 @@ module Breakers
       data.map { |item| new(service: service, data: item) }
     end
 
-    def self.create(service:)
-      data = MultiJson.dump(start_time: Time.now.utc.to_i)
+    def self.create(service:, forced: false)
+      data = MultiJson.dump(start_time: Time.now.utc.to_i, forced: forced)
       Breakers.client.redis_connection.zadd(outages_key(service: service), Time.now.utc.to_i, data)
 
-      Breakers.client.logger&.error(msg: 'Breakers outage beginning', service: service.name)
+      Breakers.client.logger&.error(msg: 'Breakers outage beginning', service: service.name, forced: forced)
 
       Breakers.client.plugins.each do |plugin|
         plugin.on_outage_begin(Outage.new(service: service, data: data)) if plugin.respond_to?(:on_outage_begin)
@@ -43,12 +43,16 @@ module Breakers
       @body.key?('end_time')
     end
 
+    def forced?
+      @body['forced']
+    end
+
     def end!
       new_body = @body.dup
       new_body['end_time'] = Time.now.utc.to_i
       replace_body(body: new_body)
 
-      Breakers.client.logger&.info(msg: 'Breakers outage ending', service: @service.name)
+      Breakers.client.logger&.info(msg: 'Breakers outage ending', service: @service.name, forced: forced?)
       Breakers.client.plugins.each do |plugin|
         plugin.on_outage_end(self) if plugin.respond_to?(:on_outage_begin)
       end

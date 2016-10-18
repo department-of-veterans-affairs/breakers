@@ -48,7 +48,7 @@ describe 'integration suite' do
 
     it 'creates an outage' do
       connection.get '/'
-      expect(service.last_outage).to be
+      expect(service.latest_outage).to be
     end
 
     it 'logs the error' do
@@ -64,7 +64,7 @@ describe 'integration suite' do
     end
 
     it 'logs the outage' do
-      expect(logger).to receive(:error).with(msg: 'Breakers outage beginning', service: 'VA')
+      expect(logger).to receive(:error).with(msg: 'Breakers outage beginning', service: 'VA', forced: false)
       connection.get '/'
     end
 
@@ -215,7 +215,7 @@ describe 'integration suite' do
     let(:now) { Time.now.utc }
     before do
       Timecop.freeze(now)
-      redis.zadd('brk-VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i))
+      redis.zadd('brk-VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i, forced: false))
     end
 
     it 'lets me query for the outage by time range' do
@@ -243,11 +243,11 @@ describe 'integration suite' do
 
       it 'calls off the outage' do
         connection.get '/'
-        expect(service.last_outage).to be_ended
+        expect(service.latest_outage).to be_ended
       end
 
       it 'logs the end of the outage' do
-        expect(logger).to receive(:info).with(msg: 'Breakers outage ending', service: 'VA')
+        expect(logger).to receive(:info).with(msg: 'Breakers outage ending', service: 'VA', forced: false)
         connection.get '/'
       end
 
@@ -258,7 +258,7 @@ describe 'integration suite' do
 
       it 'records the end time in the outage' do
         connection.get '/'
-        expect(service.last_outage.end_time.to_i).to eq(now.to_i)
+        expect(service.latest_outage.end_time.to_i).to eq(now.to_i)
       end
     end
 
@@ -279,7 +279,7 @@ describe 'integration suite' do
 
       it 'updates the last_test_time in the outate' do
         connection.get '/'
-        expect(service.last_outage.last_test_time.to_i).to eq(now.to_i)
+        expect(service.latest_outage.last_test_time.to_i).to eq(now.to_i)
       end
 
       it 'gets a 503 when making another request' do
@@ -318,25 +318,85 @@ describe 'integration suite' do
     it 'does not record an outage on a single failure' do
       stub_request(:get, 'va.gov').to_return(status: 500)
       connection.get '/'
-      expect(service.last_outage).not_to be
+      expect(service.latest_outage).not_to be
     end
 
     it 'does not record an outage after 99 errors' do
       stub_request(:get, 'va.gov').to_return(status: 500)
       99.times { connection.get '/' }
-      expect(service.last_outage).not_to be
+      expect(service.latest_outage).not_to be
     end
 
     it 'records an outage after 100 errors' do
       stub_request(:get, 'va.gov').to_return(status: 500)
       100.times { connection.get '/' }
-      expect(service.last_outage).to be
+      expect(service.latest_outage).to be
     end
 
     it 'lets me query for successes in a time range' do
       counts = service.successes_in_range(start_time: now - 120, end_time: now, sample_seconds: 60)
       count = counts.map { |c| c[:count] }.inject(0) { |a, b| a + b }
       expect(count).to eq(100)
+    end
+  end
+
+  context 'starting a forced outage' do
+    it 'logs the beginning of the outage' do
+      expect(logger).to receive(:error).with(msg: 'Breakers outage beginning', service: 'VA', forced: true)
+      service.begin_forced_outage!
+    end
+
+    it 'logs the end of the outage' do
+      expect(logger).to receive(:info).with(msg: 'Breakers outage ending', service: 'VA', forced: true)
+      service.begin_forced_outage!
+      service.end_forced_outage!
+    end
+  end
+
+  context 'there is a forced outage' do
+    let(:start_time) { Time.now.utc - 120 }
+    let(:now) { Time.now.utc }
+    before do
+      Timecop.freeze(start_time)
+      service.begin_forced_outage!
+      Timecop.freeze(now)
+    end
+
+    it 'lets me end the outage' do
+      expect(service.latest_outage).to be_forced
+      expect(service.latest_outage).not_to be_ended
+      service.end_forced_outage!
+      expect(service.latest_outage).to be_forced
+      expect(service.latest_outage).to be_ended
+    end
+
+    it 'lets me query for the outage by time range' do
+      outages = service.outages_in_range(start_time: start_time, end_time: now)
+      expect(outages.count).to eq(1)
+      expect(outages.first.start_time.to_i).to eq(start_time.to_i)
+      expect(outages.first.end_time).to be_nil
+      expect(outages.first).to be_forced
+    end
+
+    context 'and the new request is successful' do
+      before do
+        stub_request(:get, 'va.gov').to_return(status: 200, body: 'abcdef')
+      end
+
+      it 'should not make the request' do
+        connection.get '/'
+        expect(WebMock).not_to have_requested(:get, 'va.gov')
+      end
+
+      it 'returns a 503' do
+        response = connection.get '/'
+        expect(response.status).to eq(503)
+      end
+
+      it 'does not call off the outage' do
+        connection.get '/'
+        expect(service.latest_outage).not_to be_ended
+      end
     end
   end
 end

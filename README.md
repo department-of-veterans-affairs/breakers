@@ -140,6 +140,20 @@ end
 
 It's ok for your plugin to implement only part of this interface.
 
+### Forcing an Outage
+
+Some services will have status endpoints that you can use to check their availability, and you may want to create an outage based on that.
+Because this is a middleware, it doesn't have the ability to periodically check these endpoints, but you can add that type of check to your
+application and then force an outage in breakers:
+
+```ruby
+service.begin_forced_outage!
+service.end_forced_outage!
+```
+
+Unlike with outages detected by the middleware, forced outages are not periodically tested to see if they have completed and must be
+manually ended with a call to `end_forced_outage!`.
+
 ### Redis Data Structure
 
 Data is stored in Redis with the following structure:
