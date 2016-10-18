@@ -1,4 +1,7 @@
 module Breakers
+  # A service defines a backend system that your application relies upon. This class
+  # allows you to configure the outage detection for a service as well as to define which
+  # requests belong to it.
   class Service
     DEFAULT_OPTS = {
       seconds_before_retry: 60,
@@ -6,35 +9,74 @@ module Breakers
       data_retention_seconds: 60 * 60 * 24 * 30
     }.freeze
 
+    # Create a new service
+    #
+    # @param [Hash] opts the options to create the service with
+    # @option opts [String] :name The name of the service for reporting and logging purposes
+    # @option opts [Proc] :request_matcher A proc taking a Faraday::Env as an argument that returns true if the service handles that request
+    # @option opts [Integer] :seconds_before_retry The number of seconds to wait after an outage begins before testing with a new request
+    # @option opts [Integer] :error_threshold The percentage of errors over the last two minutes that indicates an outage
+    # @option opts [Integer] :data_retention_seconds The number of seconds to retain success and error data in Redis
     def initialize(opts)
       @configuration = DEFAULT_OPTS.merge(opts)
     end
 
+    # Get the name of the service
+    #
+    # @return [String] the name
     def name
       @configuration[:name]
     end
 
-    def handles_request?(request_env)
+    # Given a Faraday::Env, return true if this service handles the request, via its matcher
+    #
+    # @param request_env [Faraday::Env] the request environment
+    # @return [Boolean] should the service handle the request
+    def handles_request?(request_env:)
       @configuration[:request_matcher].call(request_env)
     end
 
+    # Get the seconds before retry parameter
+    #
+    # @return [Integer] the value
     def seconds_before_retry
       @configuration[:seconds_before_retry]
     end
 
+    # Indicate that an error has occurred and potentially create an outage
     def add_error
       increment_key(key: errors_key)
       maybe_create_outage
     end
 
+    # Indicate that a successful response has occurred
     def add_success
       increment_key(key: successes_key)
     end
 
-    def last_outage
-      Outage.find_last(service: self)
+    # Force an outage to begin on the service. Forced outages are not periodically retested.
+    def begin_forced_outage!
+      Outage.create(service: self, forced: true)
     end
 
+    # End a forced outage on the service.
+    def end_forced_outage!
+      latest = Outage.find_latest(service: self)
+      if latest.forced?
+        latest.end!
+      end
+    end
+
+    # Return the most recent outage on the service
+    def latest_outage
+      Outage.find_latest(service: self)
+    end
+
+    # Return a list of all outages in the given time range
+    #
+    # @param start_time [Time] the beginning of the range
+    # @param end_time [Time] the end of the range
+    # @return [Array[Outage]] a list of outages that began in the range
     def outages_in_range(start_time:, end_time:)
       Outage.in_range(
         service: self,
@@ -43,12 +85,24 @@ module Breakers
       )
     end
 
-    def successes_in_range(start_time:, end_time:, sample_seconds: 3600)
-      values_in_range(start_time: start_time, end_time: end_time, type: :successes, sample_seconds: sample_seconds)
+    # Return data about the successful request counts in the time range
+    #
+    # @param start_time [Time] the beginning of the range
+    # @param end_time [Time] the end of the range
+    # @param sample_minutes [Integer] the rate at which to sample the data
+    # @return [Array[Hash]] a list of hashes in the form: { count: Integer, time: Unix Timestamp }
+    def successes_in_range(start_time:, end_time:, sample_minutes: 60)
+      values_in_range(start_time: start_time, end_time: end_time, type: :successes, sample_minutes: sample_minutes)
     end
 
-    def errors_in_range(start_time:, end_time:, sample_seconds: 3600)
-      values_in_range(start_time: start_time, end_time: end_time, type: :errors, sample_seconds: sample_seconds)
+    # Return data about the failed request counts in the time range
+    #
+    # @param start_time [Time] the beginning of the range
+    # @param end_time [Time] the end of the range
+    # @param sample_minutes [Integer] the rate at which to sample the data
+    # @return [Array[Hash]] a list of hashes in the form: { count: Integer, time: Unix Timestamp }
+    def errors_in_range(start_time:, end_time:, sample_minutes: 60)
+      values_in_range(start_time: start_time, end_time: end_time, type: :errors, sample_minutes: sample_minutes)
     end
 
     protected
@@ -61,7 +115,7 @@ module Breakers
       "#{Breakers.redis_prefix}#{name}-successes-#{align_time_on_minute(time: time).to_i}"
     end
 
-    def values_in_range(start_time:, end_time:, type:, sample_seconds:)
+    def values_in_range(start_time:, end_time:, type:, sample_minutes:)
       start_time = align_time_on_minute(time: start_time)
       end_time = align_time_on_minute(time: end_time)
       keys = []
@@ -73,7 +127,7 @@ module Breakers
         elsif type == :successes
           keys << successes_key(time: start_time)
         end
-        start_time += sample_seconds
+        start_time += sample_minutes * 60
       end
       Breakers.client.redis_connection.mget(keys).each_with_index.map do |value, idx|
         { count: value.to_i, time: times[idx] }

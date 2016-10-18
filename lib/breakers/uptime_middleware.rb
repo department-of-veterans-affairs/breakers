@@ -2,6 +2,7 @@ require 'faraday'
 require 'multi_json'
 
 module Breakers
+  # The faraday middleware
   class UptimeMiddleware < Faraday::Middleware
     def initialize(app)
       super(app)
@@ -14,13 +15,13 @@ module Breakers
         return @app.call(request_env)
       end
 
-      last_outage = service.last_outage
+      latest_outage = service.latest_outage
 
-      if last_outage && !last_outage.ended?
-        if last_outage.ready_for_retest?(wait_seconds: service.seconds_before_retry)
-          handle_request(service: service, request_env: request_env, current_outage: last_outage)
+      if latest_outage && !latest_outage.ended?
+        if latest_outage.ready_for_retest?(wait_seconds: service.seconds_before_retry)
+          handle_request(service: service, request_env: request_env, current_outage: latest_outage)
         else
-          outage_response(outage: last_outage, service: service)
+          outage_response(outage: latest_outage, service: service)
         end
       else
         handle_request(service: service, request_env: request_env)

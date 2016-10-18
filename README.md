@@ -31,7 +31,7 @@ service = Breakers::Service.new(
 
 client = Breakers::Client.new(redis_connection: redis, services: [service])
 
-Breakers.set_client(client)
+Breakers.client = client
 
 connection = Faraday.new do |conn|
   conn.use :breakers
@@ -93,7 +93,7 @@ The logger should conform to Ruby's Logger API. See more information on plugins 
 The client can be configured globally with:
 
 ```ruby
-Breakers.set_client(client)
+Breakers.client = client
 ```
 
 In a Rails app, it makes sense to create the services and client in an initializer and then apply them with this call. If you would like to
@@ -103,7 +103,7 @@ namespace the data in Redis with a prefix, you can make that happen with:
 Breakers.redis_prefix = 'custom-'
 ```
 
-The default prefix is brk-.
+The default prefix is an empty string.
 
 ### Using the Middleware
 
@@ -139,6 +139,20 @@ end
 ```
 
 It's ok for your plugin to implement only part of this interface.
+
+### Forcing an Outage
+
+Some services will have status endpoints that you can use to check their availability, and you may want to create an outage based on that.
+Because this is a middleware, it doesn't have the ability to periodically check these endpoints, but you can add that type of check to your
+application and then force an outage in breakers:
+
+```ruby
+service.begin_forced_outage!
+service.end_forced_outage!
+```
+
+Unlike with outages detected by the middleware, forced outages are not periodically tested to see if they have completed and must be
+manually ended with a call to `end_forced_outage!`.
 
 ### Redis Data Structure
 
