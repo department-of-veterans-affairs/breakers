@@ -29,7 +29,7 @@ describe 'integration suite' do
   end
 
   before do
-    Breakers.set_client(client)
+    Breakers.client = client
   end
 
   context 'with a 500' do
@@ -43,7 +43,7 @@ describe 'integration suite' do
     it 'adds a failure to redis' do
       connection.get '/'
       rounded_time = now.to_i - (now.to_i % 60)
-      expect(redis.get("brk-VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
+      expect(redis.get("VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
     end
 
     it 'creates an outage' do
@@ -75,7 +75,7 @@ describe 'integration suite' do
 
     it 'lets me query for errors in a time range' do
       connection.get '/'
-      counts = service.errors_in_range(start_time: now - 120, end_time: now, sample_seconds: 60)
+      counts = service.errors_in_range(start_time: now - 120, end_time: now, sample_minutes: 1)
       count = counts.map { |c| c[:count] }.inject(0) { |a, b| a + b }
       expect(count).to eq(1)
     end
@@ -95,7 +95,7 @@ describe 'integration suite' do
       rescue Faraday::TimeoutError
       end
       rounded_time = now.to_i - (now.to_i % 60)
-      expect(redis.get("brk-VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
+      expect(redis.get("VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
     end
 
     it 'raises the exception' do
@@ -136,7 +136,7 @@ describe 'integration suite' do
       rescue
       end
       rounded_time = now.to_i - (now.to_i % 60)
-      expect(redis.get("brk-VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
+      expect(redis.get("VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
     end
 
     it 'raises the exception' do
@@ -168,7 +168,7 @@ describe 'integration suite' do
     let(:now) { Time.now.utc }
     before do
       Timecop.freeze(now)
-      redis.zadd('brk-VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i))
+      redis.zadd('VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i))
     end
 
     it 'should return a 503' do
@@ -188,7 +188,7 @@ describe 'integration suite' do
     let(:now_time) { Time.now.utc }
     before do
       Timecop.freeze(now_time)
-      redis.zadd('brk-VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i, end_time: end_time))
+      redis.zadd('VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i, end_time: end_time))
       stub_request(:get, 'va.gov').to_return(status: 200)
     end
 
@@ -200,7 +200,7 @@ describe 'integration suite' do
     it 'adds a success to redis' do
       connection.get '/'
       rounded_time = now_time.to_i - (now_time.to_i % 60)
-      count = redis.get("brk-VA-successes-#{rounded_time}")
+      count = redis.get("VA-successes-#{rounded_time}")
       expect(count).to eq('1')
     end
 
@@ -215,7 +215,7 @@ describe 'integration suite' do
     let(:now) { Time.now.utc }
     before do
       Timecop.freeze(now)
-      redis.zadd('brk-VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i, forced: false))
+      redis.zadd('VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i, forced: false))
     end
 
     it 'lets me query for the outage by time range' do
@@ -334,7 +334,7 @@ describe 'integration suite' do
     end
 
     it 'lets me query for successes in a time range' do
-      counts = service.successes_in_range(start_time: now - 120, end_time: now, sample_seconds: 60)
+      counts = service.successes_in_range(start_time: now - 120, end_time: now, sample_minutes: 1)
       count = counts.map { |c| c[:count] }.inject(0) { |a, b| a + b }
       expect(count).to eq(100)
     end

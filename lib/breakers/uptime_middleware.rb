@@ -2,6 +2,7 @@ require 'faraday'
 require 'multi_json'
 
 module Breakers
+  # The faraday middleware
   class UptimeMiddleware < Faraday::Middleware
     def initialize(app)
       super(app)

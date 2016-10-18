@@ -31,7 +31,7 @@ service = Breakers::Service.new(
 
 client = Breakers::Client.new(redis_connection: redis, services: [service])
 
-Breakers.set_client(client)
+Breakers.client = client
 
 connection = Faraday.new do |conn|
   conn.use :breakers
@@ -93,7 +93,7 @@ The logger should conform to Ruby's Logger API. See more information on plugins 
 The client can be configured globally with:
 
 ```ruby
-Breakers.set_client(client)
+Breakers.client = client
 ```
 
 In a Rails app, it makes sense to create the services and client in an initializer and then apply them with this call. If you would like to
@@ -103,7 +103,7 @@ namespace the data in Redis with a prefix, you can make that happen with:
 Breakers.redis_prefix = 'custom-'
 ```
 
-The default prefix is brk-.
+The default prefix is an empty string.
 
 ### Using the Middleware
 
