@@ -31,12 +31,16 @@ module Breakers
     protected
 
     def outage_response(outage:, service:)
-      Faraday::Response.new.tap do |response|
-        response.finish(
-          status: 503,
-          body: "Outage detected on #{service.name} beginning at #{outage.start_time.to_i}",
-          response_headers: {}
-        )
+      if Breakers.outage_response[:type] == :status_code
+        Faraday::Response.new.tap do |response|
+          response.finish(
+            status: Breakers.outage_response[:status_code],
+            body: "Outage detected on #{service.name} beginning at #{outage.start_time.to_i}",
+            response_headers: {}
+          )
+        end
+      else
+        raise Breakers::OutageException.new(outage, service)
       end
     end
 
@@ -60,13 +64,15 @@ module Breakers
         end
       end
     rescue => e
-      handle_error(
-        service: service,
-        request_env: request_env,
-        response_env: nil,
-        error: "#{e.class.name} - #{e.message}",
-        current_outage: current_outage
-      )
+      unless e.is_a?(Breakers::OutageException)
+        handle_error(
+          service: service,
+          request_env: request_env,
+          response_env: nil,
+          error: "#{e.class.name} - #{e.message}",
+          current_outage: current_outage
+        )
+      end
       raise
     end
 
