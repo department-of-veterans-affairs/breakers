@@ -1,5 +1,6 @@
 require 'breakers/client'
 require 'breakers/outage'
+require 'breakers/outage_exception'
 require 'breakers/service'
 require 'breakers/uptime_middleware'
 require 'breakers/version'
@@ -39,5 +40,22 @@ module Breakers
   # @return [String] the prefix
   def self.redis_prefix
     @redis_prefix || ''
+  end
+
+  # Configure the middleware's handling of outages. The default is to raise a Breakers::OutageException
+  # but you can also request that the response comes back with a configurable status code.
+  #
+  # @param [Hash] opts A hash of options
+  # @option opts [Symbol] :type Pass :exception to raise a Breakers::OutageException when an error occurs. Pass :status_code to respond.
+  # @option opts [Integer] :status_code If the type is :status_code, configure which code to return.
+  def self.outage_response=(opts)
+    @outage_response = { type: :exception }.merge(opts)
+  end
+
+  # Query for the outage response configuration
+  #
+  # @return [Hash] configuration for the outage response, as defined in outage_response=
+  def self.outage_response
+    @outage_response || { type: :exception }
   end
 end

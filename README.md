@@ -154,6 +154,15 @@ service.end_forced_outage!
 Unlike with outages detected by the middleware, forced outages are not periodically tested to see if they have completed and must be
 manually ended with a call to `end_forced_outage!`.
 
+### Changing the Outage Response
+
+By default, if you make a request against a service that is experiencing an outage a Breakers::OutageException will be raised. If you would
+prefer to receive a response with a certain status code instead, you can change that with:
+
+```ruby
+Breakers.outage_response = { type: :status_code, status_code: 503 }
+```
+
 ### Redis Data Structure
 
 Data is stored in Redis with the following structure:

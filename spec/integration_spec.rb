@@ -29,6 +29,7 @@ describe 'integration suite' do
   end
 
   before do
+    Breakers.outage_response = { type: :status_code, status_code: 503 }
     Breakers.client = client
   end
 
@@ -397,6 +398,23 @@ describe 'integration suite' do
         connection.get '/'
         expect(service.latest_outage).not_to be_ended
       end
+    end
+  end
+
+  context 'configured to raise exceptions' do
+    let(:start_time) { Time.now.utc - 30 }
+    let(:now) { Time.now.utc }
+    before do
+      Timecop.freeze(now)
+      redis.zadd('VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i))
+    end
+
+    before do
+      Breakers.outage_response = { type: :exception }
+    end
+
+    it 'raises the exception' do
+      expect { connection.get '/' }.to raise_error(Breakers::OutageException)
     end
   end
 end
