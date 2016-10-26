@@ -80,6 +80,54 @@ describe 'integration suite' do
       count = counts.map { |c| c[:count] }.inject(0) { |a, b| a + b }
       expect(count).to eq(1)
     end
+
+    context 'with breakers disabled' do
+      before do
+        Breakers.disabled = true
+      end
+
+      after do
+        Breakers.disabled = false
+      end
+
+      it 'does not add a failure to redis' do
+        connection.get '/'
+        rounded_time = now.to_i - (now.to_i % 60)
+        expect(redis.get("VA-errors-#{rounded_time.to_i}").to_i).to eq(0)
+      end
+
+      it 'does not create an outage' do
+        connection.get '/'
+        expect(service.latest_outage).not_to be
+      end
+
+      it 'does not log the error' do
+        expect(logger).not_to receive(:warn)
+        connection.get '/'
+      end
+
+      it 'does not tell plugins about the error' do
+        expect(plugin).not_to receive(:on_error)
+        connection.get '/'
+      end
+
+      it 'does not log the outage' do
+        expect(logger).not_to receive(:error)
+        connection.get '/'
+      end
+
+      it 'does not tell plugins about the outage' do
+        expect(plugin).not_to receive(:on_outage_begin)
+        connection.get '/'
+      end
+
+      it 'stores no errors in the time range' do
+        connection.get '/'
+        counts = service.errors_in_range(start_time: now - 120, end_time: now, sample_minutes: 1)
+        count = counts.map { |c| c[:count] }.inject(0) { |a, b| a + b }
+        expect(count).to eq(0)
+      end
+    end
   end
 
   context 'with a timeout' do
