@@ -25,6 +25,20 @@ module Breakers
     @client
   end
 
+  # Set a flag that can globally disable breakers
+  #
+  # @param value [Boolean] should breakers do its thing globally
+  def self.disabled=(value)
+    @disabled = value
+  end
+
+  # Return the status of global disabling
+  #
+  # @return [Boolean] is breakers disabled globally
+  def self.disabled?
+    defined?(@disabled) && @disabled == true
+  end
+
   # Breakers uses a number of Redis keys to store its data. You can pass an optional
   # prefix here to use for the keys so that they will be namespaced properly. Note that
   # it's also possible to create the Breakers::Client object with a Redis::Namespace

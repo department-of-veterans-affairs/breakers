@@ -9,6 +9,10 @@ module Breakers
     end
 
     def call(request_env)
+      if Breakers.disabled?
+        return @app.call(request_env)
+      end
+
       service = Breakers.client.service_for_request(request_env: request_env)
 
       if !service
