@@ -465,4 +465,18 @@ describe 'integration suite' do
       expect { connection.get '/' }.to raise_error(Breakers::OutageException)
     end
   end
+
+  context 'with a 200' do
+    let(:now) { Time.now.utc }
+
+    before do
+      Timecop.freeze(now)
+      stub_request(:get, 'va.gov').to_return(status: 200)
+    end
+
+    it 'gives me the request duration' do
+      response = connection.get '/'
+      expect(response.env[:duration]).to be
+    end
+  end
 end
