@@ -69,8 +69,17 @@ module Breakers
           end
         end
       end
+    rescue Faraday::Error::TimeoutError => e
+      handle_error(
+        service: service,
+        request_env: request_env,
+        response_env: nil,
+        error: "#{e.class.name} - #{e.message}",
+        current_outage: current_outage
+      )
+      raise
     rescue => e
-      unless e.is_a?(Breakers::OutageException)
+      if service.exception_represents_server_error?(e)
         handle_error(
           service: service,
           request_env: request_env,

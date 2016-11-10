@@ -174,40 +174,91 @@ describe 'integration suite' do
   context 'with some other error' do
     let(:now) { Time.now.utc }
 
-    before do
-      Timecop.freeze(now)
-      stub_request(:get, 'va.gov').to_raise('bogus error')
-    end
-
-    it 'adds a failure to redis' do
-      begin
-        connection.get '/'
-      rescue
+    context 'without an error handler' do
+      before do
+        Timecop.freeze(now)
+        stub_request(:get, 'va.gov').to_raise('bogus error')
       end
-      rounded_time = now.to_i - (now.to_i % 60)
-      expect(redis.get("VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
-    end
 
-    it 'raises the exception' do
-      expect { connection.get '/' }.to raise_error(StandardError)
-    end
+      it 'does not add a failure to redis' do
+        begin
+          connection.get '/'
+        rescue
+        end
+        rounded_time = now.to_i - (now.to_i % 60)
+        expect(redis.get("VA-errors-#{rounded_time.to_i}").to_i).to eq(0)
+      end
 
-    it 'logs the error' do
-      expect(logger).to receive(:warn).with(
-        msg: 'Breakers failed request', service: 'VA', url: 'http://va.gov/', error: 'StandardError - bogus error'
-      )
+      it 'raises the exception' do
+        expect { connection.get '/' }.to raise_error(StandardError)
+      end
 
-      begin
-        connection.get '/'
-      rescue
+      it 'does not log the error' do
+        expect(logger).not_to receive(:warn).with(
+          msg: 'Breakers failed request', service: 'VA', url: 'http://va.gov/', error: 'StandardError - bogus error'
+        )
+
+        begin
+          connection.get '/'
+        rescue
+        end
+      end
+
+      it 'does not tell plugins about the timeout' do
+        expect(plugin).not_to receive(:on_error).with(service, instance_of(Faraday::Env), nil)
+        begin
+          connection.get '/'
+        rescue
+        end
       end
     end
 
-    it 'tells plugins about the timeout' do
-      expect(plugin).to receive(:on_error).with(service, instance_of(Faraday::Env), nil)
-      begin
-        connection.get '/'
-      rescue
+    context 'with an error handler' do
+      let(:service) do
+        Breakers::Service.new(
+          name: 'VA',
+          request_matcher: proc { |request_env| request_env.url.host =~ /.*va.gov/ },
+          seconds_before_retry: 60,
+          error_threshold: 50,
+          exception_handler: proc { |e| true }
+        )
+      end
+
+      before do
+        Timecop.freeze(now)
+        stub_request(:get, 'va.gov').to_raise('bogus error')
+      end
+
+      it 'adds a failure to redis' do
+        begin
+          connection.get '/'
+        rescue
+        end
+        rounded_time = now.to_i - (now.to_i % 60)
+        expect(redis.get("VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
+      end
+
+      it 'raises the exception' do
+        expect { connection.get '/' }.to raise_error(StandardError)
+      end
+
+      it 'logs the error' do
+        expect(logger).to receive(:warn).with(
+          msg: 'Breakers failed request', service: 'VA', url: 'http://va.gov/', error: 'StandardError - bogus error'
+        )
+
+        begin
+          connection.get '/'
+        rescue
+        end
+      end
+
+      it 'tells plugins about the timeout' do
+        expect(plugin).to receive(:on_error).with(service, instance_of(Faraday::Env), nil)
+        begin
+          connection.get '/'
+        rescue
+        end
       end
     end
   end
