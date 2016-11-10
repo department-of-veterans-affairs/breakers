@@ -17,6 +17,7 @@ module Breakers
     # @option opts [Integer] :seconds_before_retry The number of seconds to wait after an outage begins before testing with a new request
     # @option opts [Integer] :error_threshold The percentage of errors over the last two minutes that indicates an outage
     # @option opts [Integer] :data_retention_seconds The number of seconds to retain success and error data in Redis
+    # @option opts [Proc] :exception_handler A proc taking an exception and returns true if it represents an error on the service
     def initialize(opts)
       @configuration = DEFAULT_OPTS.merge(opts)
     end
@@ -41,6 +42,13 @@ module Breakers
     # @return [Integer] the value
     def seconds_before_retry
       @configuration[:seconds_before_retry]
+    end
+
+    # Returns true if a given exception represents an error with the service
+    #
+    # @return [Boolean] is it an error?
+    def exception_represents_server_error?(exception)
+      @configuration[:exception_handler]&.call(exception)
     end
 
     # Indicate that an error has occurred and potentially create an outage
