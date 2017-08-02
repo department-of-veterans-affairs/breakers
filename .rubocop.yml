@@ -2,6 +2,8 @@ AllCops:
   TargetRubyVersion: 2.3
   Include:
     - 'Rakefile'
+  Exclude:
+    - Gemfile
 
 Metrics/LineLength:
   Max: 140
@@ -21,6 +23,9 @@ Metrics/ClassLength:
 
 Metrics/MethodLength:
   Max: 50
+
+Metrics/BlockLength:
+  Max: 500
 
 Metrics/AbcSize:
   Max: 75
@@ -98,7 +103,7 @@ Style/GuardClause:
 Style/Next:
   Enabled: false
 
-Style/IndentArray:
+Layout/IndentArray:
   EnforcedStyle: consistent
 
 # This forces you to change simple if/unless blocks to the conditional form like: `return 2 if badness`.
@@ -149,7 +154,7 @@ Style/WordArray:
 
 # Some people really like to put lines at the beginning and end of class bodies, while other people
 # really don't. It doesn't really seem to matter.
-Style/EmptyLinesAroundClassBody:
+Layout/EmptyLinesAroundClassBody:
   Enabled: false
 
 # This forces you to put a comment like this at the top of every single file:
@@ -164,10 +169,10 @@ Style/Lambda:
   Enabled: false
 
 # Force indentation for milti-line expressions and method calls
-Style/MultilineOperationIndentation:
+Layout/MultilineOperationIndentation:
   EnforcedStyle: indented
 
-Style/MultilineMethodCallIndentation:
+Layout/MultilineMethodCallIndentation:
   EnforcedStyle: indented
 
 # This disallows the use of $1, $2 from regular expressions, which seems to make no sense whatsoever
@@ -198,7 +203,7 @@ Style/ZeroLengthPredicate:
 #   ...
 # end
 Lint/EndAlignment:
-  AlignWith: variable
+  EnforcedStyleAlignWith: variable
 
 # This cop will require you to replace or prefix method arguments that go unused with underscores. The problem
 # is that while seeming to solve no problem this could easily cause issues where someone editing the code to
