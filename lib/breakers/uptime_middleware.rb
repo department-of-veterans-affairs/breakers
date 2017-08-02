@@ -69,7 +69,7 @@ module Breakers
           end
         end
       end
-    rescue Faraday::Error::TimeoutError => e
+    rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
       handle_error(
         service: service,
         request_env: request_env,
