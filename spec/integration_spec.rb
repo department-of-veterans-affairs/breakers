@@ -141,24 +141,24 @@ describe 'integration suite' do
     it 'adds a failure to redis' do
       begin
         connection.get '/'
-      rescue Faraday::TimeoutError
+      rescue Faraday::ConnectionFailed
       end
       rounded_time = now.to_i - (now.to_i % 60)
       expect(redis.get("VA-errors-#{rounded_time.to_i}").to_i).to eq(1)
     end
 
     it 'raises the exception' do
-      expect { connection.get '/' }.to raise_error(Faraday::TimeoutError)
+      expect { connection.get '/' }.to raise_error(Faraday::ConnectionFailed)
     end
 
     it 'logs the error' do
       expect(logger).to receive(:warn).with(
-        msg: 'Breakers failed request', service: 'VA', url: 'http://va.gov/', error: 'Faraday::TimeoutError - execution expired'
+        msg: 'Breakers failed request', service: 'VA', url: 'http://va.gov/', error: 'Faraday::ConnectionFailed - execution expired'
       )
 
       begin
         connection.get '/'
-      rescue Faraday::TimeoutError
+      rescue Faraday::ConnectionFailed
       end
     end
 
@@ -166,7 +166,7 @@ describe 'integration suite' do
       expect(plugin).to receive(:on_error).with(service, instance_of(Faraday::Env), nil)
       begin
         connection.get '/'
-      rescue Faraday::TimeoutError
+      rescue Faraday::ConnectionFailed
       end
     end
   end
