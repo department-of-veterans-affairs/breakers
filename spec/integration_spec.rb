@@ -276,6 +276,14 @@ describe 'integration suite' do
       expect(response.status).to eq(503)
     end
 
+    it 'should tell the plugin about the skipped request during outage' do
+      expect(plugin).to receive(:on_skipped_request).with(service)
+      begin
+        connection.get '/'
+      rescue
+      end
+    end
+
     it 'should include information about the outage in the body' do
       response = connection.get '/'
       expect(response.body).to eq("Outage detected on VA beginning at #{start_time.to_i}")
@@ -306,6 +314,11 @@ describe 'integration suite' do
 
     it 'informs the plugin about the success' do
       expect(plugin).to receive(:on_success).with(service, instance_of(Faraday::Env), instance_of(Faraday::Env))
+      connection.get '/'
+    end
+
+    it 'should not tell the plugin about a skipped request' do
+      expect(plugin).not_to receive(:on_skipped_request)
       connection.get '/'
     end
   end

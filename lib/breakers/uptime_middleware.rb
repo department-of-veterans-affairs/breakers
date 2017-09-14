@@ -35,6 +35,9 @@ module Breakers
     protected
 
     def outage_response(outage:, service:)
+      Breakers.client.plugins.each do |plugin|
+        plugin.on_skipped_request(service) if plugin.respond_to?(:on_skipped_request)
+      end
       if Breakers.outage_response[:type] == :status_code
         Faraday::Response.new.tap do |response|
           response.finish(
