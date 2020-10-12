@@ -54,7 +54,7 @@ module Breakers
     def handle_request(service:, request_env:, current_outage: nil)
       start_time = Time.now
       return @app.call(request_env).on_complete do |response_env|
-        response_env[:duration] = Time.now - start_time
+        response_env[:duration] = (Time.now - start_time) * 1000
         if response_env.status >= 500
           handle_error(
             service: service,
