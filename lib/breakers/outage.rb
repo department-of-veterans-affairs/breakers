@@ -132,9 +132,9 @@ module Breakers
     end
 
     def replace_body(body:)
-      Breakers.client.redis_connection.multi do
-        Breakers.client.redis_connection.zrem(key, MultiJson.dump(@body))
-        Breakers.client.redis_connection.zadd(key, start_time.to_i, MultiJson.dump(body))
+      Breakers.client.redis_connection.multi do |pipeline|
+        pipeline.zrem(key, MultiJson.dump(@body))
+        pipeline.zadd(key, start_time.to_i, MultiJson.dump(body))
       end
       @body = body
     end
