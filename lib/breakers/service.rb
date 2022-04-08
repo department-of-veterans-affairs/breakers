@@ -143,9 +143,9 @@ module Breakers
     end
 
     def increment_key(key:)
-      Breakers.client.redis_connection.multi do
-        Breakers.client.redis_connection.incr(key)
-        Breakers.client.redis_connection.expire(key, @configuration[:data_retention_seconds])
+      Breakers.client.redis_connection.multi do |pipeline|
+        pipeline.incr(key)
+        pipeline.expire(key, @configuration[:data_retention_seconds])
       end
     end
 
@@ -156,11 +156,11 @@ module Breakers
     end
 
     def maybe_create_outage
-      data = Breakers.client.redis_connection.multi do
-        Breakers.client.redis_connection.get(errors_key(time: Time.now.utc))
-        Breakers.client.redis_connection.get(errors_key(time: Time.now.utc - 60))
-        Breakers.client.redis_connection.get(successes_key(time: Time.now.utc))
-        Breakers.client.redis_connection.get(successes_key(time: Time.now.utc - 60))
+      data = Breakers.client.redis_connection.multi do |pipeline|
+        pipeline.get(errors_key(time: Time.now.utc))
+        pipeline.get(errors_key(time: Time.now.utc - 60))
+        pipeline.get(successes_key(time: Time.now.utc))
+        pipeline.get(successes_key(time: Time.now.utc - 60))
       end
       failure_count = data[0].to_i + data[1].to_i
       success_count = data[2].to_i + data[3].to_i
