@@ -71,6 +71,9 @@ Each service can be further configured with the following:
 * `seconds_before_retry` - The number of seconds to wait before sending a new request when an outage is reported. Every N seconds, a new request will be sent, and if it succeeds the outage will be ended. Defaults to 60.
 * `error_threshold` - The percentage of errors over which an outage will be reported. Defaults to 50.
 * `data_retention_seconds` - The number of seconds for which data will be stored in Redis for successful and unsuccessful request counts. See below for information on the structure of data within Redis. Defaults to 30 days.
+* `min_errors` - At least this many errors need to occur in the observation period before an outage will be reported. Defaults to 1.
+* `success_sample_per` - Record every Nth success by incrementing by N, e.g., 5 will increment the success count by 5, 20% (1/5) of the time. Reduces write traffic to Redis. Defaults to 1 (no sampling).
+* `seconds_between_outage_checks` - Check redis for a recorded outage at most once per this time period. Reduces read traffic to Redis. Defaults to 0 (always check).
 
 ### Client
 
