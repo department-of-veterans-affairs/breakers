@@ -390,7 +390,7 @@ describe 'integration suite' do
         expect(response.status).to eq(500)
       end
 
-      it 'updates the last_test_time in the outate' do
+      it 'updates the last_test_time in the outage' do
         connection.get '/'
         expect(service.latest_outage.last_test_time.to_i).to eq(now.to_i)
       end
