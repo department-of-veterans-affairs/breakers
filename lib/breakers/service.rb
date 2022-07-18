@@ -137,7 +137,7 @@ module Breakers
         end
         start_time += sample_minutes * 60
       end
-      Breakers.client.redis_connection.mget(keys).each_with_index.map do |value, idx|
+      Breakers.client.redis_connection.mget(*keys).each_with_index.map do |value, idx|
         { count: value.to_i, time: times[idx] }
       end
     end
