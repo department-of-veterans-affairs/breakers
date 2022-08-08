@@ -41,6 +41,10 @@ describe 'integration suite' do
       stub_request(:get, 'va.gov').to_return(status: 500)
     end
 
+    after do
+      Timecop.return
+    end
+
     it 'adds a failure to redis' do
       connection.get '/'
       rounded_time = now.to_i - (now.to_i % 60)
@@ -136,6 +140,10 @@ describe 'integration suite' do
     before do
       Timecop.freeze(now)
       stub_request(:get, 'va.gov').to_timeout
+    end
+
+    after do
+      Timecop.return
     end
 
     it 'adds a failure to redis' do
@@ -516,6 +524,7 @@ describe 'integration suite' do
   context 'configured to raise exceptions' do
     let(:start_time) { Time.now.utc - 30 }
     let(:now) { Time.now.utc }
+
     before do
       Timecop.freeze(now)
       redis.zadd('VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i))
@@ -523,6 +532,10 @@ describe 'integration suite' do
 
     before do
       Breakers.outage_response = { type: :exception }
+    end
+
+    after do
+      Timecop.return
     end
 
     it 'raises the exception' do
@@ -536,6 +549,10 @@ describe 'integration suite' do
     before do
       Timecop.freeze(now)
       stub_request(:get, 'va.gov').to_return(status: 200)
+    end
+
+    after do
+      Timecop.return
     end
 
     it 'gives me the request duration' do
