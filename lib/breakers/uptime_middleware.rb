@@ -4,9 +4,13 @@ require 'multi_json'
 module Breakers
   # The faraday middleware
   class UptimeMiddleware < Faraday::Middleware
-    def initialize(app, args)
-      @service_name = args[:service_name] || nil
+    def initialize(app, args = nil)
+      @service_name = args&.dig(:service_name)
       super(app)
+    end
+
+    def service_name
+      @service_name
     end
 
     def call(request_env)
