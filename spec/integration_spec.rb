@@ -6,7 +6,7 @@ describe 'integration suite' do
   let(:service) do
     Breakers::Service.new(
       name: 'VA',
-      request_matcher: proc { |request_env| request_env.url.host =~ /.*va.gov/ },
+      request_matcher: proc { |breakers_service, request_env, request_service_name| request_env.url.host =~ /.*va.gov/ },
       seconds_before_retry: 60,
       error_threshold: 50
     )
@@ -217,7 +217,7 @@ describe 'integration suite' do
       let(:service) do
         Breakers::Service.new(
           name: 'VA',
-          request_matcher: proc { |request_env| request_env.url.host =~ /.*va.gov/ },
+          request_matcher: proc { |breakers_service, request_env, request_service_name| request_env.url.host =~ /.*va.gov/ },
           seconds_before_retry: 60,
           error_threshold: 50,
           exception_handler: proc { |e| true }
