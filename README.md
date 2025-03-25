@@ -26,7 +26,7 @@ Or install it yourself as:
 ```ruby
 service = Breakers::Service.new(
   name: 'messaging',
-  request_matcher: proc { |request_env| request_env.url.host =~ /.*messaging\.va\.gov/ }
+  request_matcher: proc { |breakers_service, request_env, request_service_name| request_env.url.host =~ /.*messaging\.va\.gov/ }
 )
 
 client = Breakers::Client.new(redis_connection: redis, services: [service])
@@ -57,7 +57,7 @@ are defined like this:
 ```ruby
 service = Breakers::Service.new(
   name: 'messaging',
-  request_matcher: proc { |request_env| request_env.url.host =~ /.*messaging\.va\.gov/ },
+  request_matcher: proc { |breakers_service, request_env, request_service_name| breakers_service.name == request_service_name },
   seconds_before_retry: 60,
   error_threshold: 50
 )

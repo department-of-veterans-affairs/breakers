@@ -6,7 +6,7 @@ describe 'integration suite' do
   let(:service) do
     Breakers::Service.new(
       name: 'VA',
-      request_matcher: proc { |request_env| request_env.url.host =~ /.*va.gov/ },
+      request_matcher: proc { |breakers_service, request_env, request_service_name| request_env.url.host =~ /.*va.gov/ },
       seconds_before_retry: 60,
       error_threshold: 50
     )
@@ -23,7 +23,7 @@ describe 'integration suite' do
   end
   let(:connection) do
     Faraday.new('http://va.gov') do |conn|
-      conn.use :breakers
+      conn.use(:breakers, service_name: 'VA')
       conn.adapter Faraday.default_adapter
     end
   end
@@ -217,7 +217,7 @@ describe 'integration suite' do
       let(:service) do
         Breakers::Service.new(
           name: 'VA',
-          request_matcher: proc { |request_env| request_env.url.host =~ /.*va.gov/ },
+          request_matcher: proc { |breakers_service, request_env, request_service_name| request_env.url.host =~ /.*va.gov/ },
           seconds_before_retry: 60,
           error_threshold: 50,
           exception_handler: proc { |e| true }
@@ -412,6 +412,45 @@ describe 'integration suite' do
       response = connection.get('http://whitehouse.gov')
       expect(response.status).to eq(200)
       expect(response.body).to eq('POTUS')
+    end
+  end
+
+  context 'requests may be matched by service name' do
+    let(:alternate_connection) do
+      Faraday.new('http://va.gov') do |conn|
+        conn.use(:breakers, service_name: 'ALTERNATE')
+        conn.adapter Faraday.default_adapter
+      end
+    end
+    let(:now) { Time.now.utc }
+    let(:matcher) do
+      proc do |breakers_service, request_env, request_service_name|
+        breakers_service.name == request_service_name
+      end
+    end
+    let(:service) do
+      Breakers::Service.new(
+        name: 'VA',
+        request_matcher: matcher,
+        seconds_before_retry: 60,
+        error_threshold: 50,
+        exception_handler: proc { |e| true }
+      )
+    end
+
+    before do
+      Timecop.freeze(now)
+      stub_request(:get, 'http://fda.gov').to_return(status: 500)
+    end
+
+    it 'matches by service name' do
+      response = connection.get('http://fda.gov')
+      expect(service.latest_outage).to be
+    end
+
+    it 'different service does not match' do
+      response = alternate_connection.get('http://fda.gov')
+      expect(service.latest_outage).not_to be
     end
   end
 

@@ -33,8 +33,8 @@ module Breakers
     #
     # @param request_env [Faraday::Env] the request environment
     # @return [Boolean] should the service handle the request
-    def handles_request?(request_env:)
-      @configuration[:request_matcher].call(request_env)
+    def handles_request?(request_env:, service_name:)
+      @configuration[:request_matcher].call(self, request_env, service_name)
     end
 
     # Get the seconds before retry parameter

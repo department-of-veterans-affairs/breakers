@@ -23,10 +23,11 @@ module Breakers
     # Given a request environment, return the service that should handle it.
     #
     # @param request_env [Faraday::Env] the request environment
+    # @param service_name [String] the service name
     # @return [Breakers::Service] the service object
-    def service_for_request(request_env:)
+    def service_for_request(request_env:, service_name:)
       @services.find do |service|
-        service.handles_request?(request_env: request_env)
+        service.handles_request?(request_env: request_env, service_name: service_name)
       end
     end
   end
