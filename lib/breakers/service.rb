@@ -6,7 +6,10 @@ module Breakers
     DEFAULT_OPTS = {
       seconds_before_retry: 60,
       error_threshold: 50,
-      data_retention_seconds: 60 * 60 * 24 * 30
+      data_retention_seconds: 60 * 60 * 24 * 30,
+      min_errors: 1,
+      success_sample_per: 1,
+      seconds_between_outage_checks: 0
     }.freeze
 
     # Create a new service
@@ -17,9 +20,14 @@ module Breakers
     # @option opts [Integer] :seconds_before_retry The number of seconds to wait after an outage begins before testing with a new request
     # @option opts [Integer] :error_threshold The percentage of errors over the last two minutes that indicates an outage
     # @option opts [Integer] :data_retention_seconds The number of seconds to retain success and error data in Redis
+    # @option opts [Integer] :success_sample_per The number of successes (statistically) before those successes are counted
     # @option opts [Proc] :exception_handler A proc taking an exception and returns true if it represents an error on the service
     def initialize(opts)
       @configuration = DEFAULT_OPTS.merge(opts)
+      per = @configuration[:success_sample_per].to_i
+      per = [1, [per, 1_000_000].min].max
+      @configuration[:success_sample_per] = per
+      @configuration
     end
 
     # Get the name of the service
@@ -44,6 +52,13 @@ module Breakers
       @configuration[:seconds_before_retry]
     end
 
+    # Get the success sample per
+    #
+    # @return [Integer] the value
+    def success_sample_per
+      @configuration[:success_sample_per]
+    end
+
     # Returns true if a given exception represents an error with the service
     #
     # @return [Boolean] is it an error?
@@ -59,7 +74,11 @@ module Breakers
 
     # Indicate that a successful response has occurred
     def add_success
-      increment_key(key: successes_key)
+      if success_sample_per == 1
+        increment_key(key: successes_key)
+      elsif rand < 1.0/success_sample_per
+        increment_key(key: successes_key, by: success_sample_per)
+      end
     end
 
     # Force an outage to begin on the service. Forced outages are not periodically retested.
@@ -75,9 +94,16 @@ module Breakers
       end
     end
 
-    # Return the most recent outage on the service
+    # Return the most recent outage on the service, throttled to reference
+    # redis at most once every `seconds_between_outage_checks`
     def latest_outage
-      Outage.find_latest(service: self)
+      throttle = @configuration[:seconds_between_outage_checks]
+      if !@latest_outage_fetched.nil? && @latest_outage_fetched > Time.now - throttle
+        @latest_outage
+      else
+        @latest_outage_fetched = Time.now
+        @latest_outage = Outage.find_latest(service: self)
+      end
     end
 
     # Return a list of all outages in the given time range
@@ -93,7 +119,7 @@ module Breakers
       )
     end
 
-    # Return data about the successful request counts in the time range
+    # Return data about the successful request counts in the time range (a statistical estimate)
     #
     # @param start_time [Time] the beginning of the range
     # @param end_time [Time] the end of the range
@@ -142,9 +168,13 @@ module Breakers
       end
     end
 
-    def increment_key(key:)
+    def increment_key(key:, by: 1)
       Breakers.client.redis_connection.multi do |pipeline|
-        pipeline.incr(key)
+        if by == 1
+          pipeline.incr(key)
+        else
+          pipeline.incrby(key, by)
+        end
         pipeline.expire(key, @configuration[:data_retention_seconds])
       end
     end
@@ -164,8 +194,9 @@ module Breakers
       end
       failure_count = data[0].to_i + data[1].to_i
       success_count = data[2].to_i + data[3].to_i
+      return if failure_count < @configuration[:min_errors]
 
-      if failure_count > 0 && success_count == 0
+      if success_count == 0
         Outage.create(service: self)
       else
         failure_rate = failure_count / (failure_count + success_count).to_f

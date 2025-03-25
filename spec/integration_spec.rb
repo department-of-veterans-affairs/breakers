@@ -52,6 +52,28 @@ describe 'integration suite' do
       expect(service.latest_outage).to be
     end
 
+    context 'with min_errors' do
+      let(:service) do
+        Breakers::Service.new(
+          name: 'VA',
+          request_matcher: proc { |request_env| request_env.url.host =~ /.*va.gov/ },
+          seconds_before_retry: 60,
+          error_threshold: 50,
+          min_errors: 3
+        )
+      end
+
+      it 'does not create an outage with a single error' do
+        connection.get '/'
+        expect(service.latest_outage).to be_nil
+      end
+
+      it 'creates an outage after many errors' do
+        3.times { connection.get '/' }
+        expect(service.latest_outage).to be_truthy
+      end
+    end
+
     it 'logs the error' do
       expect(logger).to receive(:warn).with(
         msg: 'Breakers failed request', service: 'VA', url: 'http://va.gov/', error: 500
@@ -290,11 +312,12 @@ describe 'integration suite' do
     end
   end
 
-  context 'there is a completed outage' do
+  context 'there is a completed outage with guaranteed success INCRs' do
     let(:start_time) { Time.now.utc - (60 * 60) }
     let(:end_time) { Time.now.utc - 60 }
     let(:now_time) { Time.now.utc }
     before do
+      service.instance_variable_get(:@configuration)[:success_sample_per] = 1
       Timecop.freeze(now_time)
       redis.zadd('VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i, end_time: end_time))
       stub_request(:get, 'va.gov').to_return(status: 200)
@@ -312,7 +335,86 @@ describe 'integration suite' do
       expect(count).to eq('1')
     end
 
-    it 'informs the plugin about the success' do
+    it 'adds two successes to redis' do
+      response = connection.get '/'
+      response = connection.get '/'
+      rounded_time = now_time.to_i - (now_time.to_i % 60)
+      count = redis.get("VA-successes-#{rounded_time}")
+      expect(count).to eq('2')
+    end
+
+    it 'informs the plugin about a success' do
+      expect(plugin).to receive(:on_success).with(service, instance_of(Faraday::Env), instance_of(Faraday::Env))
+      connection.get '/'
+    end
+
+    it 'should not tell the plugin about a skipped request' do
+      expect(plugin).not_to receive(:on_skipped_request)
+      connection.get '/'
+    end
+  end
+
+  context 'there is a completed outage with pseudo-random success INCRs' do
+    let(:start_time) { Time.now.utc - (60 * 60) }
+    let(:end_time) { Time.now.utc - 60 }
+    let(:now_time) { Time.now.utc }
+    before do
+      service.instance_variable_get(:@configuration)[:success_sample_per] = 2
+      Timecop.freeze(now_time)
+      redis.zadd('VA-outages', start_time.to_i, MultiJson.dump(start_time: start_time.to_i, end_time: end_time))
+      stub_request(:get, 'va.gov').to_return(status: 200)
+    end
+
+    # Wrap the examples to ensure exactly half of status messages get written
+    # to (our mocked in-memory) redis, alternating, starting with false.
+    def silence_warnings
+      original_verbosity = $VERBOSE
+      $VERBOSE = nil
+      result = yield
+      $VERBOSE = original_verbosity
+      result
+    end
+    around(:example) do |example|
+      silence_warnings do
+        class Breakers::Service
+          @@_fake_rand = [0.75, 0.25]
+          def rand
+            @@_fake_rand.push(@@_fake_rand.shift)
+            @@_fake_rand[-1]
+          end
+        end
+      end
+      result = example.run
+      silence_warnings do
+        class Breakers::Service
+          remove_method :rand
+        end
+      end
+      result
+    end
+
+    it 'makes the request' do
+      response = connection.get '/'
+      expect(response.status).to eq(200)
+    end
+
+    it 'adds success to redis after every other request' do
+      rounded_time = now_time.to_i - (now_time.to_i % 60)
+      response = connection.get '/'
+      count = redis.get("VA-successes-#{rounded_time}")
+      expect(count).to eq(nil)
+      response = connection.get '/'
+      count = redis.get("VA-successes-#{rounded_time}")
+      expect(count).to eq('2')
+      response = connection.get '/'
+      count = redis.get("VA-successes-#{rounded_time}")
+      expect(count).to eq('2')
+      response = connection.get '/'
+      count = redis.get("VA-successes-#{rounded_time}")
+      expect(count).to eq('4')
+    end
+
+    it 'informs the plugin about a success regardless of sample_per' do
       expect(plugin).to receive(:on_success).with(service, instance_of(Faraday::Env), instance_of(Faraday::Env))
       connection.get '/'
     end
@@ -456,6 +558,37 @@ describe 'integration suite' do
 
   context 'with a bunch of successes over the last few minutes' do
     let(:now) { Time.now.utc }
+    before do
+      service.instance_variable_get(:@configuration)[:success_sample_per] = 2
+    end
+
+    # Wrap the examples to ensure exactly half of status messages get written
+    # to (our mocked in-memory) redis, alternating, starting with false.
+    def silence_warnings
+      original_verbosity = $VERBOSE
+      $VERBOSE = nil
+      result = yield
+      $VERBOSE = original_verbosity
+      result
+    end
+    around(:example) do |example|
+      silence_warnings do
+        class Breakers::Service
+          @@_fake_rand = [0.75, 0.25]
+          def rand
+            @@_fake_rand.push(@@_fake_rand.shift)
+            @@_fake_rand[-1]
+          end
+        end
+      end
+      result = example.run
+      silence_warnings do
+        class Breakers::Service
+          remove_method :rand
+        end
+      end
+      result
+    end
 
     before do
       Timecop.freeze(now - 90)
@@ -580,6 +713,27 @@ describe 'integration suite' do
     it 'gives me the request duration' do
       response = connection.get '/'
       expect(response.env[:duration]).to be
+    end
+  end
+
+  context 'with throttling of outage checks' do
+    let(:now) { Time.now.utc }
+    let(:service) do
+      Breakers::Service.new(
+        name: 'VA',
+        request_matcher: proc { |request_env| request_env.url.host =~ /.*va.gov/ },
+        seconds_before_retry: 60,
+        error_threshold: 50,
+        seconds_between_outage_checks: 10
+      )
+    end
+
+    it 'only checks for outages once every 10 seconds' do
+      expect(redis).to receive(:zrange).twice.and_return([])
+      2.times { service.latest_outage }
+      Timecop.freeze(now + 10)
+      2.times { service.latest_outage }
+      Timecop.return
     end
   end
 end
