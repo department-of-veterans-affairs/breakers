@@ -26,13 +26,17 @@ module Breakers
 
       latest_outage = service.latest_outage
 
-      if latest_outage && !latest_outage.ended?
+      if !latest_outage.nil? && !latest_outage&.ended?
         if latest_outage.ready_for_retest?(wait_seconds: service.seconds_before_retry)
+          return_and_log_if_forced(latest_outage:, message: 'Breakers retesting outage') if latest_outage&.forced?
+          # No outage detected, proceed with the request
           handle_request(service: service, request_env: request_env, current_outage: latest_outage)
         else
           outage_response(outage: latest_outage, service: service)
         end
       else
+        return_and_log_if_forced(latest_outage:, message: 'Breakers no outage detected, proceeding with request') if latest_outage&.forced?
+        # No outage detected, proceed with the request
         handle_request(service: service, request_env: request_env)
       end
     end
@@ -112,6 +116,24 @@ module Breakers
       Breakers.client.plugins.each do |plugin|
         plugin.on_error(service, request_env, response_env) if plugin.respond_to?(:on_error)
       end
+    end
+
+    private
+
+    def return_and_log_if_forced(latest_outage:, message:)
+      Breakers.client.logger&.info(
+        msg: message,
+        service: @service_name,
+        outage: latest_outage,
+        forced: latest_outage&.forced?
+      )
+    rescue StandardError => e
+      # If the logger fails, we don't want to raise an error that will break the middleware
+      puts "Logging error: #{e.message}"
+      puts "Original message: #{message}"
+      puts e.backtrace.join("\n")
+
+      return
     end
   end
 end
