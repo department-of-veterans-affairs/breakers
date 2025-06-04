@@ -82,15 +82,15 @@ RSpec.describe Breakers::UptimeMiddleware do # rubocop:disable Metrics/BlockLeng
       expect(service.latest_outage).to be
     end
 
-    it "#call returns nil on a regular outage" do
-      middleware.send(:return_and_log_if_forced, latest_outage: outage, message: "test message")
+    it "#call logs and returns on a regular outage" do
+      middleware.send(:log_if_forced, latest_outage: outage, message: "test message")
     rescue StandardError => e
       expect(e).to eq(nil)
       expect(Rails.logger).to have_received(:info).with(log)
     end
 
-    it "#call returns nil on a forced outage" do
-      middleware.send(:return_and_log_if_forced, latest_outage: forced_outage, message: "test message")
+    it "#call logs and returns on a forced outage" do
+      middleware.send(:log_if_forced, latest_outage: forced_outage, message: "test message")
     rescue StandardError => e
       expect(e).to eq(nil)
       expect(Rails.logger).to have_received(:info).with(log_forced_outage)

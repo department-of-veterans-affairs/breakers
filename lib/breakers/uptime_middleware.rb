@@ -28,14 +28,14 @@ module Breakers
 
       if !latest_outage.nil? && !latest_outage&.ended?
         if latest_outage.ready_for_retest?(wait_seconds: service.seconds_before_retry)
-          return_and_log_if_forced(latest_outage:, message: 'Breakers retesting outage') if latest_outage&.forced?
+          log_if_forced(latest_outage:, message: 'Breakers retesting outage') && return if latest_outage&.forced?
           # No outage detected, proceed with the request
           handle_request(service: service, request_env: request_env, current_outage: latest_outage)
         else
           outage_response(outage: latest_outage, service: service)
         end
       else
-        return_and_log_if_forced(latest_outage:, message: 'Breakers no outage detected, proceeding with request') if latest_outage&.forced?
+        log_if_forced(latest_outage:, message: 'Breakers no outage detected, proceeding with request') && return if latest_outage&.forced?
         # No outage detected, proceed with the request
         handle_request(service: service, request_env: request_env)
       end
@@ -120,7 +120,7 @@ module Breakers
 
     private
 
-    def return_and_log_if_forced(latest_outage:, message:)
+    def log_if_forced(latest_outage:, message:)
       Breakers.client.logger&.info(
         msg: message,
         service: @service_name,
@@ -132,8 +132,6 @@ module Breakers
       puts "Logging error: #{e.message}"
       puts "Original message: #{message}"
       puts e.backtrace.join("\n")
-
-      return
     end
   end
 end
