@@ -28,7 +28,6 @@ module Breakers
 
       if !latest_outage.nil? && !latest_outage&.ended?
         if latest_outage.ready_for_retest?(wait_seconds: service.seconds_before_retry) && !latest_outage.forced?
-          # No outage detected, proceed with the request
           handle_request(service: service, request_env: request_env, current_outage: latest_outage)
         else
           outage_response(outage: latest_outage, service: service)
