@@ -26,13 +26,14 @@ module Breakers
 
       latest_outage = service.latest_outage
 
-      if latest_outage && !latest_outage.ended?
-        if latest_outage.ready_for_retest?(wait_seconds: service.seconds_before_retry)
+      if !latest_outage.nil? && !latest_outage&.ended?
+        if latest_outage.ready_for_retest?(wait_seconds: service.seconds_before_retry) && !latest_outage.forced?
           handle_request(service: service, request_env: request_env, current_outage: latest_outage)
         else
           outage_response(outage: latest_outage, service: service)
         end
       else
+        # No outage detected, proceed with the request
         handle_request(service: service, request_env: request_env)
       end
     end
@@ -45,9 +46,10 @@ module Breakers
       end
       if Breakers.outage_response[:type] == :status_code
         Faraday::Response.new.tap do |response|
+          forced = outage.forced? ? '[FORCED] ' : ''
           response.finish(
             status: Breakers.outage_response[:status_code],
-            body: "Outage detected on #{service.name} beginning at #{outage.start_time.to_i}",
+            body: "#{forced}Outage detected on #{service.name} beginning at #{outage.start_time.to_i}",
             response_headers: {}
           )
         end
